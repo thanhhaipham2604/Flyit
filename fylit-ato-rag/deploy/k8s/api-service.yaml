@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fylit-rag-api
+  namespace: fylit-rag
+spec:
+  selector:
+    app: fylit-rag-api
+  ports:
+    - port: 80
+      targetPort: 8000

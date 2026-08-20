@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fylit-rag-api
+  namespace: fylit-rag
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fylit-rag-api
+  template:
+    metadata:
+      labels:
+        app: fylit-rag-api
+    spec:
+      containers:
+        - name: api
+          image: fylit-rag-api:local   # build locally; load into kind/minikube
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: fylit-rag-config
+            - secretRef:
+                name: fylit-rag-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+# TODO: add qdrant + opensearch Deployments/StatefulSets (or a Helm chart - ADR-0003)
