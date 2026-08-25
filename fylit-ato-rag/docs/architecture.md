@@ -9,8 +9,9 @@ here - mermaid is fine - once the pipeline settles.)*
 ATO .md folder -> loader (validate, stable ID + hash)
               -> cleaner (preserve headings/lists/tables)
               -> chunker (paragraph-sized, metadata-tagged)
-              -> embeddings -> vector index (Qdrant)
-                            -> keyword index (OpenSearch)
+              -> embeddings -> Postgres `chunks` (ADR-0002)
+                              - embedding vector(N)  [HNSW, cosine]
+                              - search_vector tsvector [GIN]
               -> manifest/versioning (incremental: new/changed/deleted/superseded)
 ```
 
