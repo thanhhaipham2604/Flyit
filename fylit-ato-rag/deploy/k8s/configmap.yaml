@@ -4,8 +4,8 @@ metadata:
   name: fylit-rag-config
   namespace: fylit-rag
 data:
-  QDRANT_URL: "http://qdrant:6333"
-  OPENSEARCH_URL: "http://opensearch:9200"
+  DATABASE_URL: "postgresql://fylit:fylit@postgres:5432/fylit"
+  CHUNKS_TABLE: "chunks"
   RATE_LIMIT_PER_MINUTE: "30"
 # NOTE: OPENAI_API_KEY belongs in a Secret, not here:
 #   kubectl -n fylit-rag create secret generic fylit-rag-secrets \
