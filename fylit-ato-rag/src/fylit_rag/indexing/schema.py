@@ -30,6 +30,14 @@ FILTERABLE_FIELDS = ("doc_id", "financial_year", "version", "status", "active")
 # exactly the guarantee we want: the derivation has one owner, the database.
 GENERATED_COLUMNS = ("active", "search_vector")
 
+# The year filter, defined once so retrieval cannot invent its own version of it.
+#
+# Filtering on a year must NOT mean `financial_year = '2023-24'`. Three quarters
+# of the ATO corpus names no year at all - that is the evergreen guidance which
+# answers most questions - so an equality filter would discard the bulk of the
+# useful content. A chunk matches a year if it is evergreen OR tagged with it.
+YEAR_FILTER_SQL = "(financial_year = ARRAY[]::text[] OR financial_year @> ARRAY[%s])"
+
 # pgvector indexes HNSW/IVFFlat only up to 2000 dimensions (the `vector` column
 # type itself goes far higher). Above that there is no ANN index to build, so a
 # large-embedding model would silently fall back to sequential scan.
@@ -94,8 +102,11 @@ class ChunkRecord:
     source_title: str = ""
     source_url: str = ""
 
-    # filters
-    financial_year: str | None = None
+    # filters. financial_year is a list because the corpus demands it: 74% of
+    # ATO pages name no year at all (evergreen guidance - "how CGT works"), and
+    # rate tables name several. Empty list means evergreen, and evergreen
+    # content must stay visible to a query about any year - see YEAR_FILTER_SQL.
+    financial_year: list[str] = field(default_factory=list)
     version: int = 1
     status: Status = Status.ACTIVE
     superseded_by: str | None = None
@@ -152,7 +163,7 @@ CREATE TABLE IF NOT EXISTS {table} (
     heading_path    text[] NOT NULL DEFAULT ARRAY[]::text[],
     source_title    text NOT NULL DEFAULT '',
     source_url      text NOT NULL DEFAULT '',
-    financial_year  text,
+    financial_year  text[] NOT NULL DEFAULT ARRAY[]::text[],
     version         integer NOT NULL DEFAULT 1,
     status          text NOT NULL DEFAULT 'active'
                       CHECK (status IN ('active', 'superseded', 'deleted')),
@@ -164,11 +175,13 @@ CREATE TABLE IF NOT EXISTS {table} (
 )
 """
 
-# Covers the exact filter shape retrieval uses: active content, for a financial
-# year, at an index version. doc_id gets its own index for delete-by-document.
+# financial_year needs GIN (array containment), while version/active are plain
+# scalars best served by btree - so the old single composite index is split in
+# two. doc_id gets its own index for delete-by-document.
 _INDEX_DDL = (
     "CREATE INDEX IF NOT EXISTS {table}_doc_id_idx ON {table} (doc_id)",
-    "CREATE INDEX IF NOT EXISTS {table}_filters_idx ON {table} (financial_year, version, active)",
+    "CREATE INDEX IF NOT EXISTS {table}_year_idx ON {table} USING gin (financial_year)",
+    "CREATE INDEX IF NOT EXISTS {table}_filters_idx ON {table} (version, active)",
     "CREATE INDEX IF NOT EXISTS {table}_search_idx ON {table} USING gin (search_vector)",
     (
         "CREATE INDEX IF NOT EXISTS {table}_embedding_idx "
