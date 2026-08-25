@@ -1,4 +1,5 @@
-# Local dev stack. Store choices (Qdrant + OpenSearch) are defaults pending ADR-0002.
+# Local dev stack. One store for both retrieval halves: Postgres + pgvector
+# for embeddings, Postgres full-text search for keywords (ADR-0002).
 services:
   api:
     build:
@@ -8,32 +9,31 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      QDRANT_URL: http://qdrant:6333
-      OPENSEARCH_URL: http://opensearch:9200
+      DATABASE_URL: postgresql://fylit:fylit@postgres:5432/fylit
     volumes:
       - ./data:/app/data
     depends_on:
-      - qdrant
-      - opensearch
+      postgres:
+        condition: service_healthy
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
-  opensearch:
-    image: opensearchproject/opensearch:2
+  postgres:
+    # pgvector ships the extension prebuilt; plain postgres:16 would need it
+    # compiled in before CREATE EXTENSION vector could succeed.
+    image: pgvector/pgvector:pg16
     environment:
-      discovery.type: single-node
-      plugins.security.disabled: "true"
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: LocalDev-Only-1!
+      POSTGRES_USER: fylit
+      POSTGRES_PASSWORD: fylit   # local dev only; k8s reads this from a Secret
+      POSTGRES_DB: fylit
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fylit -d fylit"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     ports:
-      - "9200:9200"
+      - "5432:5432"
     volumes:
-      - opensearch_data:/usr/share/opensearch/data
+      - postgres_data:/var/lib/postgresql/data
 
 volumes:
-  qdrant_data:
-  opensearch_data:
+  postgres_data:
