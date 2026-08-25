@@ -3,7 +3,7 @@
   "total_files_discovered": 5588,
   "valid_documents": 5588,
   "invalid_files": 0,
-  "duplicate_content_groups": 1,
+  "duplicate_content_groups": 8,
   "documents_by_category": {
     "businesses-and-organisations": 2750,
     "individuals-and-families": 2407,
@@ -11,9 +11,9 @@
     "tax-and-super-professionals": 430
   },
   "incremental_diff_vs_previous_run": {
-    "new": 5588,
-    "changed": 0,
-    "unchanged": 0,
+    "new": 0,
+    "changed": 5582,
+    "unchanged": 6,
     "deleted": 0,
     "deleted_ids": []
   }

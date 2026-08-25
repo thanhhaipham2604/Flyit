@@ -106,9 +106,10 @@ LAST_UPDATED_RE = re.compile(
     r"Last updated\s+(?P<date>[A-Za-z0-9 ,]+?)(?=Print or Download|\n|$)"
 )
 
-# Trailing QC footer code, e.g. "QC103635", usually alone on its own line,
-# sometimes doubled up.
-QC_FOOTER_RE = re.compile(r"^\s*QC\d+\s*$", re.MULTILINE)
+# Trailing QC footer code, e.g. "QC103635". Appears either alone on its own
+# line, or glued directly to a repeated "Print or Download" with no
+# whitespace in between (e.g. "QC103635Print or Download") — match both.
+QC_FOOTER_RE = re.compile(r"QC\d+(?:Print or Download)?", re.MULTILINE)
 
 # Exact boilerplate lines to drop outright (site chrome, not page content).
 BOILERPLATE_LINES = {

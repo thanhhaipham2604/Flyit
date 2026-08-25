@@ -1,0 +1,157 @@
+{
+  "total_files": 5588,
+  "header_compliance": {
+    "header_ok_count": 5588,
+    "header_ok_pct": 100.0,
+    "missing_field_counts": {
+      "description": 340
+    },
+    "example_bad_header_files": []
+  },
+  "encoding": {
+    "files_with_issues": 0,
+    "examples": []
+  },
+  "nav_boilerplate": {
+    "full_nav_block_count": 5588,
+    "full_nav_block_pct": 100.0,
+    "partial_nav_block_count": 0,
+    "partial_nav_block_examples": [],
+    "no_nav_block_count": 0,
+    "no_nav_block_examples": []
+  },
+  "qc_footer": {
+    "shape_counts": {
+      "expected_pair": 5579,
+      "more_than_two": 3,
+      "missing": 6
+    },
+    "note": "'expected_pair' is the QC123Print-or-Download + lone-QC123 pattern the cleaning script currently assumes.",
+    "examples_not_expected_pair": [
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--standard-documents-be0c79.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\privately-owned-and-wealthy-groups--what-you-should-k-191336.md",
+      "businesses-and-organisations\\gst-excise-and-indirect-taxes\\gst--in-detail--managing-gst-in-your-business--report-3ebb82.md",
+      "businesses-and-organisations\\not-for-profit-organisations\\not-for-profit-newsroom.md",
+      "businesses-and-organisations\\small-business-newsroom\\small-business-newsroom.md",
+      "individuals-and-families\\super-for-individuals-and-families\\self-managed-super-funds-smsf--smsf-newsroom.md",
+      "root\\general\\index.md",
+      "tax-and-super-professionals\\for-superannuation-professionals\\super-funds-newsroom.md",
+      "tax-and-super-professionals\\for-tax-professionals\\tax-professionals-newsroom.md"
+    ]
+  },
+  "possible_duplicate_list_items": {
+    "files_affected": 750,
+    "files_affected_pct": 13.42,
+    "examples": [
+      "businesses-and-organisations\\assets-and-property\\capital-gains-tax-for-business-assets--depreciating-a-71339d.md",
+      "businesses-and-organisations\\assets-and-property\\capital-gains-tax-for-business-assets--in-detail--wat-04f9c9.md",
+      "businesses-and-organisations\\assets-and-property\\property--are-you-in-the-business-of-renovating-prope-03733f.md",
+      "businesses-and-organisations\\assets-and-property\\property--property-development-building-and-renovatin-3809f3.md",
+      "businesses-and-organisations\\assets-and-property\\property--property-used-in-running-a-business--commer-6ee318.md",
+      "businesses-and-organisations\\assets-and-property\\property--property-used-in-running-a-business--leasin-b0c241.md",
+      "businesses-and-organisations\\assets-and-property\\property--property-used-in-running-a-business--working-farms.md",
+      "businesses-and-organisations\\assets-and-property\\retirement-villages-and-tax--more-detailed-guidance-f-bf71a4.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\consolidation--in-detail--consolidation-valuation-shortcuts.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--employer-reporting-549ee3.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--employer-reporting-9c8e03.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--ess-foreign-income-c2448e.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--ess-news-and-updates.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--ess-rollover-relief.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--indeterminate-rights.md"
+    ]
+  },
+  "markdown_tables": {
+    "files_with_tables": 1119,
+    "files_with_tables_pct": 20.03,
+    "examples": [
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\consolidation--in-detail--consolidation-income-tax-re-6f2bd3.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\consolidation--in-detail--consolidation-reference-man-229c3e.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\consolidation--in-detail--consolidation-reference-man-92143c.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\consolidation--in-detail--consolidation-reference-man-af13f4.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\consolidation--in-detail--consolidation-reference-man-b6cea0.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\consolidation--in-detail--consolidation-valuation-shortcuts.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\debt-and-equity-tests--debt-and-equity-tests-guide-to-1a53f7.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\debt-and-equity-tests--guide-to-the-debt-and-equity-t-2d7b37.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--ess-basics--terms-we-use.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--employer-reporting-549ee3.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--ess-rollover-relief.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--market-value--mark-a33543.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\employee-share-schemes--in-detail--market-value--mark-fc3b64.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\foreign-exchange-gains-and-losses--common-forex-transactions.md",
+      "businesses-and-organisations\\corporate-tax-measures-and-assurance\\foreign-exchange-gains-and-losses--forex-realisation-events.md"
+    ]
+  },
+  "financial_year_location_preview": {
+    "none_found": 4047,
+    "in_body_only": 1236,
+    "in_heading": 78,
+    "in_url": 215,
+    "in_title": 12
+  },
+  "documents_by_category": {
+    "businesses-and-organisations": 2750,
+    "individuals-and-families": 2407,
+    "root": 1,
+    "tax-and-super-professionals": 430
+  },
+  "size_stats_by_category_bytes": {
+    "businesses-and-organisations": {
+      "count": 2750,
+      "min_bytes": 1092,
+      "max_bytes": 101407,
+      "mean_bytes": 9179.9,
+      "median_bytes": 5655.0
+    },
+    "individuals-and-families": {
+      "count": 2407,
+      "min_bytes": 1215,
+      "max_bytes": 187226,
+      "mean_bytes": 9802.3,
+      "median_bytes": 6800
+    },
+    "root": {
+      "count": 1,
+      "min_bytes": 1535,
+      "max_bytes": 1535,
+      "mean_bytes": 1535,
+      "median_bytes": 1535
+    },
+    "tax-and-super-professionals": {
+      "count": 430,
+      "min_bytes": 1169,
+      "max_bytes": 244051,
+      "mean_bytes": 7911.7,
+      "median_bytes": 5197.0
+    }
+  },
+  "menu_tree_coverage": {
+    "menu_tree_urls_loaded": 6424,
+    "files_with_source_url": 5588,
+    "coverage_pct": 100.0,
+    "files_missing_from_menu_tree_examples": [],
+    "files_missing_from_menu_tree_total": 0
+  },
+  "visited_urls_coverage": {
+    "visited_urls_loaded": 6424,
+    "visited_but_not_scraped_total": 836,
+    "visited_but_not_scraped_examples": [
+      "https://www.ato.gov.au/businesses-and-organisations",
+      "https://www.ato.gov.au/businesses-and-organisations/assets-and-property",
+      "https://www.ato.gov.au/businesses-and-organisations/assets-and-property/capital-gains-tax-for-business-assets/in-detail",
+      "https://www.ato.gov.au/businesses-and-organisations/assets-and-property/capital-gains-tax-for-business-assets/in-detail/cgt-demergers-relief",
+      "https://www.ato.gov.au/businesses-and-organisations/assets-and-property/property",
+      "https://www.ato.gov.au/businesses-and-organisations/assets-and-property/property/property-used-in-running-a-business/commercial-rent-or-lease-payment-changes",
+      "https://www.ato.gov.au/businesses-and-organisations/assets-and-property/retirement-villages-and-tax",
+      "https://www.ato.gov.au/businesses-and-organisations/business-bulletins-newsroom",
+      "https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance",
+      "https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance/consolidation",
+      "https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance/consolidation/in-detail",
+      "https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance/consolidation/in-detail/consolidation-reference-manual",
+      "https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance/consolidation/in-detail/general-value-shifting-regime",
+      "https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance/consolidation/in-detail/general-value-shifting-regime/overview-of-provisions",
+      "https://www.ato.gov.au/businesses-and-organisations/corporate-tax-measures-and-assurance/debt-and-equity-tests"
+    ],
+    "scraped_but_not_in_visited_total": 0,
+    "scraped_but_not_in_visited_examples": []
+  }
+}
