@@ -1,7 +1,8 @@
-"""Keyword (BM25) index backend (default: OpenSearch - see ADR-0002).
+"""Keyword half of retrieval: the `search_vector` column (tsvector, GIN).
 
-Exact words and phrases: names, section numbers, precise terms.
-Same metadata schema as the vector index so filters behave identically.
+Exact words and phrases: names, section numbers, precise terms. Same table as
+the vector half, so filters are literally the same columns and cannot disagree
+(ADR-0002).
 """
 
 

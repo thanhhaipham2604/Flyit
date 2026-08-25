@@ -33,4 +33,5 @@ spec:
               memory: 256Mi
             limits:
               memory: 512Mi
-# TODO: add qdrant + opensearch Deployments/StatefulSets (or a Helm chart - ADR-0003)
+# TODO: add a postgres StatefulSet + PVC (or a Helm chart - ADR-0003).
+# DATABASE_URL above carries a dev password; move it to the Secret with it.

@@ -13,8 +13,9 @@ class Settings(BaseSettings):
     corpus_dir: str = "data/ato_corpus"
     index_dir: str = "data/index"
 
-    qdrant_url: str = "http://localhost:6333"
-    opensearch_url: str = "http://localhost:9200"
+    # Postgres + pgvector serves both retrieval halves (ADR-0002).
+    database_url: str = "postgresql://fylit:fylit@localhost:5432/fylit"
+    chunks_table: str = "chunks"
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000
