@@ -1,8 +1,8 @@
-"""Vector index backend (default: Qdrant - see ADR-0002).
+"""Vector half of retrieval: the `embedding` column (pgvector, HNSW/cosine).
 
-Documented schema per point: id, vector, payload {doc_id, chunk_id, source_title,
-url, financial_year, version, active}. Keep the interface thin so the backend
-can be swapped.
+Schema lives in `schema.py` - this reads and writes `chunks` rows, it does not
+define them. Keep the interface thin so the backend can be swapped (ADR-0002
+records what we gave up to get here).
 """
 
 
