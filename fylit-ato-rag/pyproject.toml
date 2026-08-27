@@ -6,7 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "fylit-rag"
 version = "0.1.0"
 description = "Fylit ATO RAG system - RMIT capstone"
-requires-python = ">=3.11"
+# 3.12+: ingestion/pipeline.py uses PEP 701 multi-line f-string expressions,
+# and docker/api.Dockerfile builds on python:3.12-slim.
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",

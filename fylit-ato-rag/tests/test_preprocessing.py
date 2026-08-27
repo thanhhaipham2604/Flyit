@@ -23,24 +23,16 @@ import json
 
 import pytest
 
-from fylit_rag.ingestion.pipeline import (
-    CleanedDoc,
-    extract_financial_years,
-)
-
 from fylit_rag.indexing.versioning import (
     diff_against_state,
     find_content_duplicates,
 )
-
 from fylit_rag.ingestion.cleaner import clean_body
-
 from fylit_rag.ingestion.loader import (
     content_hash,
     parse_header_and_body,
     stable_id,
 )
-
 from fylit_rag.ingestion.metadata import (
     collect_financial_year_mentions,
     infer_primary_year,
@@ -49,7 +41,10 @@ from fylit_rag.ingestion.metadata import (
     process_corpus,
     tax_year_to_financial_year,
 )
-
+from fylit_rag.ingestion.pipeline import (
+    CleanedDoc,
+    extract_financial_years,
+)
 
 # --------------------------------------------------------------------------- #
 # Shared synthetic fixtures / helpers
@@ -740,10 +735,7 @@ def test_tax_year_conversion_uses_australian_fy_end_year():
 
 def test_multiple_financial_year_mentions_are_preserved():
     mentions = collect_financial_year_mentions(
-        (
-            "Rates were published for 2020-21, "
-            "2021–22 and 2022—23."
-        )
+        "Rates were published for 2020-21, 2021–22 and 2022—23."
     )
 
     assert mentions == [
@@ -1157,10 +1149,9 @@ def test_process_corpus_preserves_original_document_fields(
         == "2024-25"
     )
 
-    assert (
-        enriched["financial_year"]
-        == "2024-25"
-    )
+    # No `financial_year` alias: that name belongs to the text[] column in the
+    # indexing schema, and a scalar of the same name is a mapping trap.
+    assert "financial_year" not in enriched
 
     assert enriched["tax_year"] == "2025"
 

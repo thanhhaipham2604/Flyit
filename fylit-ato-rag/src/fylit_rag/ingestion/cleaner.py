@@ -30,8 +30,6 @@ stored as document metadata instead of being lost.
 from __future__ import annotations
 
 import re
-from typing import Optional
-
 
 # --------------------------------------------------------------------------- #
 # Metadata patterns
@@ -121,8 +119,8 @@ def clean_body(
     body: str,
 ) -> tuple[
     str,
-    Optional[str],
-    Optional[str],
+    str | None,
+    str | None,
 ]:
     """Clean one scraped ATO Markdown body.
 
@@ -149,7 +147,7 @@ def clean_body(
     # Capture Last updated metadata
     # ------------------------------------------------------------------ #
 
-    last_updated: Optional[str] = None
+    last_updated: str | None = None
 
     last_updated_match = LAST_UPDATED_RE.search(
         body
@@ -172,7 +170,7 @@ def clean_body(
     # Capture Published metadata
     # ------------------------------------------------------------------ #
 
-    published: Optional[str] = None
+    published: str | None = None
 
     published_match = PUBLISHED_RE.search(
         body

@@ -28,12 +28,14 @@ app = typer.Typer(help="End-to-end verification of the Step 0 storage layer")
 
 EXPECTED_COLUMNS = {
     "chunk_id", "doc_id", "chunk_ordinal", "content_hash", "text", "heading_path",
-    "source_title", "source_url", "financial_year", "version", "status",
+    "source_title", "source_url", "category", "topic", "last_updated",
+    "financial_year", "version", "status",
     "superseded_by", "indexed_at", "embedding", "active", "search_vector",
 }
 EXPECTED_INDEXES = {
     "chunks_pkey", "chunks_doc_id_idx", "chunks_year_idx",
     "chunks_filters_idx", "chunks_search_idx", "chunks_embedding_idx",
+    "chunks_taxonomy_idx",
 }
 
 results: list[tuple[str, bool, str]] = []
@@ -155,7 +157,7 @@ def run(
             missing = EXPECTED_INDEXES - found
             if missing:
                 raise RuntimeError(f"missing indexes: {sorted(missing)}")
-            return f"{len(EXPECTED_INDEXES)} indexes (hnsw, 2x gin, 2x btree, pk)"
+            return f"{len(EXPECTED_INDEXES)} indexes (hnsw, 2x gin, 3x btree, pk)"
 
         @check("embedding column has the model's width")
         def _():

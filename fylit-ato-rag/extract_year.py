@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """CLI wrapper for Fylit financial-year metadata enrichment.
 
 The reusable financial-year inference logic lives in:

@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping
-
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -470,7 +470,7 @@ class Manifest:
                 value,
                 Mapping,
             ):
-                raise ValueError(
+                raise TypeError(
                     "Manifest entry for "
                     f"{doc_id!r} must be a hash "
                     "string or mapping"
@@ -695,12 +695,12 @@ class Manifest:
 
 
 __all__ = [
-    "Manifest",
-    "ManifestEntry",
     "STATUS_ACTIVE",
     "STATUS_DELETED",
     "STATUS_SUPERSEDED",
     "VALID_STATUSES",
+    "Manifest",
+    "ManifestEntry",
     "diff_against_state",
     "document_content_hash",
     "document_id",

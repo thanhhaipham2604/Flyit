@@ -23,8 +23,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
 
 log = logging.getLogger(__name__)
 
@@ -115,7 +113,7 @@ class RawDocument:
 
 
 def load_menu_tree(
-    path: Optional[Path],
+    path: Path | None,
 ) -> dict:
     """Load ``menu_tree.json`` for breadcrumb enrichment.
 
@@ -210,7 +208,7 @@ def discover_md_files(
 def parse_header_and_body(
     raw_text: str,
 ) -> tuple[
-    Optional[dict],
+    dict | None,
     str,
 ]:
     """Split one scraped Markdown document into header metadata and body.
@@ -282,7 +280,7 @@ def parse_header_and_body(
 
 
 def stable_id(
-    source_url: Optional[str],
+    source_url: str | None,
     fallback_path: str,
 ) -> str:
     """Generate a deterministic document identifier.
@@ -334,7 +332,7 @@ def category_and_topic(
     root: Path,
 ) -> tuple[
     str,
-    Optional[str],
+    str | None,
 ]:
     """Derive the corpus category and topic from a relative source path."""
 
