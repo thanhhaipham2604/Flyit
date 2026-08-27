@@ -30,8 +30,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Optional
-
+from typing import Any
 
 # --------------------------------------------------------------------------- #
 # Core financial-year patterns
@@ -322,7 +321,7 @@ MYTAX_URL_YEAR_RE = re.compile(
 def normalise_financial_year(
     start: str,
     end: str,
-) -> Optional[str]:
+) -> str | None:
     """Return a canonical YYYY-YY financial year.
 
     Valid examples:
@@ -353,7 +352,7 @@ def normalise_financial_year(
 
 def normalise_range_text(
     value: str,
-) -> Optional[str]:
+) -> str | None:
     """Extract and normalise a financial-year candidate from text."""
 
     match = FY_RANGE_RE.search(value)
@@ -492,7 +491,10 @@ def infer_primary_year(
         content,
     )
 
-    result = {
+    # Annotated because the literal below mixes list[str] with None, which
+    # narrows the inferred value type and rejects the str values the rules
+    # assign further down.
+    result: dict[str, Any] = {
         "financial_year_mentions":
             financial_year_mentions,
         "tax_year_mentions":
@@ -841,12 +843,13 @@ def enrich_document_year_metadata(
         year_metadata
     )
 
-    # Temporary backward-compatible alias for existing downstream code.
-    enriched["financial_year"] = (
-        year_metadata[
-            "primary_financial_year"
-        ]
-    )
+    # NOTE: deliberately no `financial_year` alias here. The indexing schema has
+    # a column of that exact name which is `text[] NOT NULL`, so a nullable
+    # scalar sharing the name is a trap: the obvious mapping
+    # `doc["financial_year"] -> chunks.financial_year` fails on NOT NULL, and
+    # coercing it silently drops every year but the primary one. Downstream code
+    # wants `financial_years` (the list) for the column, and
+    # `primary_financial_year` when it genuinely needs one representative year.
 
     return enriched
 
