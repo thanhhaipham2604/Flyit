@@ -19,7 +19,7 @@ before anyone has a container up.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 
 # Fields retrieval filters on. Each needs a real index or the filters quietly
@@ -82,6 +82,22 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def parse_last_updated(display: str | None) -> date | None:
+    """Turn ATO's "18 February 2026" into a real date.
+
+    Ingestion only captures the display string. Returning None on anything
+    unparseable is deliberate - an unreadable date should leave the column
+    empty, never guess a wrong one.
+    """
+    if not display:
+        return None
+    try:
+
+        return datetime.strptime(display.strip(), "%d %B %Y").date()  # noqa: DTZ007
+    except ValueError:
+        return None
+
+
 @dataclass(slots=True)
 class ChunkRecord:
     """One indexed chunk, as the `chunks` table holds it."""
@@ -101,6 +117,16 @@ class ChunkRecord:
     # citation - these two are what the API hands back as Useful Resources
     source_title: str = ""
     source_url: str = ""
+
+    # corpus taxonomy, straight from the ATO URL structure (ingestion emits
+    # these as `category`/`topic`). Cheap, low-cardinality filters - useful for
+    # scoping a query to business vs individual guidance.
+    category: str | None = None
+    topic: str | None = None
+
+    # ATO's own "Last updated" date, present on 92% of the corpus. A better
+    # staleness signal than financial year, which most pages don't carry at all.
+    last_updated: date | None = None
 
     # filters. financial_year is a list because the corpus demands it: 74% of
     # ATO pages name no year at all (evergreen guidance - "how CGT works"), and
@@ -134,6 +160,9 @@ class ChunkRecord:
             "heading_path": self.heading_path,
             "source_title": self.source_title,
             "source_url": self.source_url,
+            "category": self.category,
+            "topic": self.topic,
+            "last_updated": self.last_updated,
             "financial_year": self.financial_year,
             "version": self.version,
             "status": str(self.status),
@@ -163,6 +192,9 @@ CREATE TABLE IF NOT EXISTS {table} (
     heading_path    text[] NOT NULL DEFAULT ARRAY[]::text[],
     source_title    text NOT NULL DEFAULT '',
     source_url      text NOT NULL DEFAULT '',
+    category        text,
+    topic           text,
+    last_updated    date,
     financial_year  text[] NOT NULL DEFAULT ARRAY[]::text[],
     version         integer NOT NULL DEFAULT 1,
     status          text NOT NULL DEFAULT 'active'
@@ -181,6 +213,7 @@ CREATE TABLE IF NOT EXISTS {table} (
 _INDEX_DDL = (
     "CREATE INDEX IF NOT EXISTS {table}_doc_id_idx ON {table} (doc_id)",
     "CREATE INDEX IF NOT EXISTS {table}_year_idx ON {table} USING gin (financial_year)",
+    "CREATE INDEX IF NOT EXISTS {table}_taxonomy_idx ON {table} (category, topic)",
     "CREATE INDEX IF NOT EXISTS {table}_filters_idx ON {table} (version, active)",
     "CREATE INDEX IF NOT EXISTS {table}_search_idx ON {table} USING gin (search_vector)",
     (
