@@ -22,7 +22,6 @@ from fylit_rag.ingestion.pipeline import (
     run_preprocessing,
 )
 
-
 log = logging.getLogger("datacleaning")
 
 
