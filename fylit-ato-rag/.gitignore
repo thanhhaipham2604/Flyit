@@ -18,3 +18,7 @@ data/index/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated preprocessing outputs
+data/processed/*
+!data/processed/.gitkeep
