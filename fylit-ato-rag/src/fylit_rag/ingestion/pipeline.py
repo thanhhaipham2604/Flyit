@@ -33,7 +33,6 @@ import logging
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -42,9 +41,7 @@ from fylit_rag.indexing.versioning import (
     find_content_duplicates,
     load_state,
 )
-
 from fylit_rag.ingestion.cleaner import clean_body
-
 from fylit_rag.ingestion.loader import (
     category_and_topic,
     content_hash,
@@ -53,11 +50,9 @@ from fylit_rag.ingestion.loader import (
     parse_header_and_body,
     stable_id,
 )
-
 from fylit_rag.ingestion.metadata import (
     process_corpus as enrich_corpus_year_metadata,
 )
-
 
 log = logging.getLogger(__name__)
 
@@ -105,15 +100,15 @@ class CleanedDoc:
     content_hash: str
     file_path: str
     category: str
-    topic: Optional[str]
+    topic: str | None
     title: str
-    description: Optional[str]
-    source_url: Optional[str]
-    menu_path_text: Optional[str]
-    menu_path_tree: Optional[list]
-    last_updated_display: Optional[str]
-    published_display: Optional[str]
-    scraped_at: Optional[str]
+    description: str | None
+    source_url: str | None
+    menu_path_text: str | None
+    menu_path_tree: list | None
+    last_updated_display: str | None
+    published_display: str | None
+    scraped_at: str | None
     financial_years: list = field(
         default_factory=list
     )
@@ -215,7 +210,7 @@ def process_file(
     root: Path,
     menu_tree: dict,
     invalid: list,
-) -> Optional[CleanedDoc]:
+) -> CleanedDoc | None:
     """Parse, clean, enrich and validate one Markdown source file.
 
     Invalid files are appended to ``invalid`` rather than stopping the entire
@@ -942,9 +937,9 @@ if __name__ == "__main__":
 
 
 __all__ = [
-    "CleanedDoc",
     "FINANCIAL_YEAR_RE",
     "MIN_BODY_CHARS",
+    "CleanedDoc",
     "extract_financial_years",
     "process_file",
     "resolve_corpus_root",
