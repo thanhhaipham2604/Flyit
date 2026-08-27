@@ -1,9 +1,11 @@
-#!/usr/bin/env python3
 """
-auditing.py
+Corpus audit
 ============
 
 Fylit ATO RAG System — Zone A (offline ingestion) — Step 1: Audit.
+
+Run it via the root-level ``auditing.py`` wrapper, or
+``python -m fylit_rag.ingestion.audit``.
 
 This is a READ-ONLY diagnostic pass over the RAW .md corpus. It does not
 clean, modify, or write back to any source file. Its only job is to produce
@@ -37,7 +39,10 @@ Checks performed
 
 Usage
 -----
-    python auditing.py --input data/ato_corpus/atoData --output data/processed/audit
+    python auditing.py --input data/ato_corpus --output data/processed/audit
+
+Either data/ato_corpus or data/ato_corpus/atoData is accepted; the layout is
+resolved the same way the preprocessing pipeline resolves it.
 
 Outputs (all under --output, nothing written anywhere else):
     audit_report.json   -> full structured findings + example file paths
@@ -54,13 +59,16 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Optional
+from typing import Any
+
+from fylit_rag.ingestion.pipeline import resolve_corpus_root
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-7s | %(message)s",
     datefmt="%H:%M:%S",
 )
+
 log = logging.getLogger("auditing")
 
 MAX_EXAMPLES = 15  # cap how many example file paths we keep per finding
@@ -105,8 +113,12 @@ def discover_md_files(root: Path) -> list[Path]:
     return sorted(root.rglob("*.md"))
 
 
-def read_raw(path: Path) -> tuple[Optional[str], bool]:
-    """Returns (text, had_encoding_issue). Text is None only on a hard I/O error."""
+def read_raw(path: Path) -> tuple[str, bool]:
+    """Returns (text, had_encoding_issue).
+
+    Always a str: undecodable bytes fall back to errors="replace" rather than
+    returning None, and a genuine I/O failure raises out of read_bytes().
+    """
     raw_bytes = path.read_bytes()
     try:
         text = raw_bytes.decode("utf-8")
@@ -140,7 +152,7 @@ def classify_qc_footer(text: str) -> str:
     return "other_shape"
 
 
-def classify_fy_location(source_url: Optional[str], title: str, body: str) -> str:
+def classify_fy_location(source_url: str | None, title: str, body: str) -> str:
     """Cheap preview of where an FY mention (if any) shows up, to inform
     Step 3's precedence chain (URL > explicit statement > heading > null).
     This does NOT implement the real precedence logic — just measures shape.
@@ -157,7 +169,7 @@ def classify_fy_location(source_url: Optional[str], title: str, body: str) -> st
     return "none_found"
 
 
-def load_json_safely(path: Path) -> Optional[dict | list]:
+def load_json_safely(path: Path) -> dict | list | None:
     if not path.exists():
         return None
     try:
@@ -229,11 +241,14 @@ def audit_file(path: Path, root: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, default=Path("data/ato_corpus/atoData"))
+    parser.add_argument("--input", type=Path, default=Path("data/ato_corpus"))
     parser.add_argument("--output", type=Path, default=Path("data/processed/audit"))
     args = parser.parse_args()
 
-    input_root: Path = args.input
+    # Accept either data/ato_corpus or data/ato_corpus/atoData, exactly as the
+    # preprocessing pipeline does. The audit and the pipeline must never
+    # disagree about where the corpus is.
+    input_root: Path = resolve_corpus_root(args.input)
     output_root: Path = args.output
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -241,7 +256,11 @@ def main() -> int:
         log.error("Input folder does not exist: %s", input_root)
         return 1
 
-    menu_tree = load_json_safely(input_root / "menu_tree.json") or {}
+    # menu_tree.json is a URL -> menu-path mapping. Anything else (a list, a
+    # truncated file) is unusable here, so fall back to empty rather than
+    # failing on .keys() much further down.
+    loaded_menu_tree = load_json_safely(input_root / "menu_tree.json")
+    menu_tree: dict = loaded_menu_tree if isinstance(loaded_menu_tree, dict) else {}
     visited_raw = load_json_safely(input_root / "visited_urls.json")
     if isinstance(visited_raw, dict):
         visited_urls = set(visited_raw.get("visited", []))
@@ -317,7 +336,7 @@ def main() -> int:
     visited_not_scraped = sorted(visited_urls - source_urls) if visited_urls else []
     scraped_not_visited = sorted(source_urls - visited_urls) if visited_urls else []
 
-    report = {
+    report: dict[str, Any] = {
         "total_files": n,
         "header_compliance": {
             "header_ok_count": header_ok,
@@ -373,8 +392,8 @@ def main() -> int:
     }
 
     report_path = output_root / "audit_report.json"
-    with report_path.open("w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2, ensure_ascii=False)
+    with report_path.open("w", encoding="utf-8") as report_file:
+        json.dump(report, report_file, indent=2, ensure_ascii=False)
 
     # --- Human-readable summary ---
     summary_lines = [
