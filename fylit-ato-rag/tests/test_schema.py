@@ -5,6 +5,7 @@ whether or not a container is running.
 """
 
 import re
+from datetime import date
 
 import pytest
 
@@ -17,6 +18,7 @@ from fylit_rag.indexing.schema import (
     Status,
     ddl_statements,
     dimensions_for,
+    parse_last_updated,
 )
 
 
@@ -117,6 +119,31 @@ def test_each_generated_column_is_generated_in_the_ddl(column):
     """The derivations must be enforced by the database, not by convention -
     and by *each* column's own definition, not just somewhere in the file."""
     assert re.search(rf"\b{column}\s+\w+\s+GENERATED ALWAYS AS", ddl())
+
+
+def test_new_taxonomy_and_recency_columns_exist():
+    """category/topic scope a query; last_updated is the recency signal that
+    financial_year cannot be, since 74% of pages carry no year."""
+    sql = ddl()
+    for column in ("category", "topic", "last_updated"):
+        assert column in make_chunk().as_record()
+        assert column in sql
+    assert "(category, topic)" in sql  # indexed as a pair
+
+
+@pytest.mark.parametrize(
+    ("display", "expected"),
+    [
+        ("18 February 2026", date(2026, 2, 18)),
+        ("  4 August 2021  ", date(2021, 8, 4)),
+        ("not a date", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_parse_last_updated(display, expected):
+    """An unreadable date must leave the column empty, never guess."""
+    assert parse_last_updated(display) == expected
 
 
 def test_dimensions_for_known_model():
