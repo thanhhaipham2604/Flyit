@@ -160,6 +160,48 @@ def test_short_response_is_rejected(fake, monkeypatch):
         embeddings.embed_texts(["one", "two"])
 
 
+def test_configured_api_key_reaches_the_client(monkeypatch):
+    """settings.openai_api_key must actually be wired to the client.
+
+    Without this, a key supplied any way other than a .env file - a real
+    environment variable, a CI secret, a secrets manager feeding Settings -
+    would be silently ignored while the config field suggested otherwise.
+    """
+    captured = {}
+
+    class Recorder:
+        def __init__(self, api_key=None, **kwargs):
+            captured["api_key"] = api_key
+
+    monkeypatch.setattr(embeddings, "OpenAI", Recorder)
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test-not-a-real-key")
+    embeddings._client.cache_clear()
+
+    embeddings._client()
+
+    assert captured["api_key"] == "sk-test-not-a-real-key"
+    embeddings._client.cache_clear()  # don't hand the recorder to another test
+
+
+def test_absent_configured_key_defers_to_the_sdk(monkeypatch):
+    """An empty setting must become None, so the SDK's own OPENAI_API_KEY
+    lookup still works rather than being overridden with an empty string."""
+    captured = {}
+
+    class Recorder:
+        def __init__(self, api_key=None, **kwargs):
+            captured["api_key"] = api_key
+
+    monkeypatch.setattr(embeddings, "OpenAI", Recorder)
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    embeddings._client.cache_clear()
+
+    embeddings._client()
+
+    assert captured["api_key"] is None
+    embeddings._client.cache_clear()
+
+
 def test_importing_the_module_needs_no_api_key():
     """Tests and CI must be able to import this without credentials.
 

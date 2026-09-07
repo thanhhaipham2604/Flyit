@@ -55,9 +55,15 @@ def _client() -> OpenAI:
     before anything is configured, and this module sits in the same package.
     Constructing the client here means importing `embeddings` never needs an API
     key, and only actually embedding does.
+
+    The key comes from `settings`, which is the one place configuration is
+    declared - so a key supplied any way pydantic-settings understands (a real
+    environment variable, a CI secret) reaches the client, not just one written
+    into a .env file. `load_dotenv()` stays as the fallback for the latter, and
+    passing None lets the SDK fall back to OPENAI_API_KEY itself.
     """
     load_dotenv()
-    return OpenAI()
+    return OpenAI(api_key=settings.openai_api_key or None)
 
 
 # ---------------------------------------------------------------- cache
