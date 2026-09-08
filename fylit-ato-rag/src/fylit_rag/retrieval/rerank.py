@@ -33,9 +33,9 @@ thing to revisit.
 from __future__ import annotations
 
 import json
-from functools import lru_cache
 
 from fylit_rag.config import settings
+from fylit_rag.openai_client import client
 from fylit_rag.retrieval.hybrid import FusedResult
 
 STRATEGIES = ("fusion", "mmr", "llm")
@@ -51,21 +51,6 @@ LLM_CANDIDATES = 20
 # Each candidate is truncated to this many characters in the prompt. Enough to
 # judge relevance, short enough that 20 of them stay affordable.
 LLM_SNIPPET_CHARS = 600
-
-
-@lru_cache(maxsize=1)
-def _client():
-    """Lazy OpenAI client, so importing this module needs no API key.
-
-    Duplicates the pattern in `indexing.embeddings` for now; when
-    `generation.llm` is built it should own one shared client and both callers
-    should use it.
-    """
-    from dotenv import load_dotenv
-    from openai import OpenAI
-
-    load_dotenv()
-    return OpenAI(api_key=settings.openai_api_key or None)
 
 
 # ---------------------------------------------------------------- strategies
@@ -166,7 +151,7 @@ def _llm_scores(query: str, shortlist: list[FusedResult]) -> dict[int, float]:
         f"{c.result.text[:LLM_SNIPPET_CHARS]}"
         for i, c in enumerate(shortlist)
     )
-    response = _client().chat.completions.create(
+    response = client().chat.completions.create(
         model=settings.generation_model,
         temperature=0,
         response_format={"type": "json_object"},

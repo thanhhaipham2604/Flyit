@@ -31,6 +31,7 @@ import typer
 
 from fylit_rag.config import settings
 from fylit_rag.indexing.bootstrap import connect
+from fylit_rag.openai_client import client
 
 app = typer.Typer(help="Generate a synthetic labelled question set from the index")
 
@@ -44,14 +45,6 @@ PROMPT = (
 )
 
 
-def _client():
-    from dotenv import load_dotenv
-    from openai import OpenAI
-
-    load_dotenv()
-    return OpenAI(api_key=settings.openai_api_key or None)
-
-
 @app.command()
 def build(
     n: int = typer.Option(150, help="How many questions to generate"),
@@ -59,7 +52,6 @@ def build(
     seed: int = typer.Option(42, help="Sampling seed, so the set is reproducible"),
 ) -> None:
     """Sample chunks and generate one question each."""
-    client = _client()
     rows = []
 
     with connect() as conn:
