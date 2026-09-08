@@ -151,6 +151,41 @@ def purge_document(conn: psycopg.Connection, doc_id: str, *, table: str | None =
         return cur.rowcount
 
 
+def current_version(conn: psycopg.Connection, doc_id: str, *, table: str | None = None) -> int:
+    """The version currently indexed for a document, or 0 if it is not indexed.
+
+    Versions are read back from the index rather than from a side file on
+    purpose: the index is what actually holds a version, so a manifest that
+    disagreed with it would be the thing that is wrong. `manifest.json` from the
+    preprocessing pipeline is a run report, not a version store.
+    """
+    table = table or settings.chunks_table
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT max(version) FROM {table} WHERE doc_id = %s", (doc_id,))
+        return cur.fetchone()[0] or 0
+
+
+def purge_chunks(
+    conn: psycopg.Connection,
+    chunk_ids: list[str],
+    *,
+    table: str | None = None,
+) -> int:
+    """Remove specific chunk rows. Used for orphans, not for lifecycle.
+
+    An orphan is a chunk the document no longer produces - a section that was
+    deleted, so the text behind it is simply gone. Unlike a superseded document
+    there is nothing left to cite, so the row goes rather than lingering in a
+    status that still answers queries.
+    """
+    if not chunk_ids:
+        return 0
+    table = table or settings.chunks_table
+    with conn.cursor() as cur:
+        cur.execute(f"DELETE FROM {table} WHERE chunk_id = ANY(%s)", (chunk_ids,))
+        return cur.rowcount
+
+
 def stale_chunk_ids(
     conn: psycopg.Connection,
     doc_id: str,
