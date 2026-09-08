@@ -16,6 +16,12 @@ from __future__ import annotations
 import psycopg
 
 from fylit_rag.indexing.schema import ChunkRecord
+from fylit_rag.indexing.search import (
+    RESULT_COLUMNS,
+    SearchResult,
+    build_where,
+    table_name,
+)
 from fylit_rag.indexing.store import UpsertReport, mark_deleted, upsert_chunks
 
 
@@ -34,9 +40,44 @@ class KeywordIndex:
         """
         return upsert_chunks(self.conn, chunks, table=self.table)
 
-    def search(self, query: str, top_k: int = 20, filters: dict | None = None):
-        """TODO: ts_rank over search_vector, same filters as the vector half."""
-        raise NotImplementedError
+    def search(
+        self,
+        query: str,
+        top_k: int = 20,
+        filters: dict | None = None,
+    ) -> list[SearchResult]:
+        """Chunks matching the query's words, ranked by ts_rank_cd.
+
+        `plainto_tsquery` ANDs the query's terms, which is the right default for
+        the keyword half: it is here to nail names, section numbers and exact
+        phrases that the vector half blurs. Questions where no chunk contains
+        every term simply return nothing, and the vector half carries them.
+
+        `ts_rank_cd` rather than `ts_rank` because it accounts for how close the
+        matched terms are to each other - "capital gains tax" appearing as a
+        phrase should beat the three words scattered across a long page.
+        """
+        where, params = build_where(filters)
+        table = table_name(self.table)
+        columns = ", ".join(f'"{c}"' for c in RESULT_COLUMNS)
+
+        # No table alias, so the shared filter fragment from `build_where` drops
+        # in unmodified. plainto_tsquery is written twice rather than aliased in
+        # the FROM clause; it is immutable with constant arguments, so Postgres
+        # evaluates it once regardless.
+        sql = (
+            f"SELECT {columns}, "
+            f"ts_rank_cd(search_vector, plainto_tsquery('english', %s)) AS rank "
+            f"FROM {table} "
+            f"WHERE search_vector @@ plainto_tsquery('english', %s) AND {where} "
+            f"ORDER BY rank DESC, chunk_id LIMIT %s"
+        )
+        with self.conn.cursor() as cur:
+            cur.execute(sql, [query, query, *params, top_k])
+            return [
+                SearchResult.from_row(row[:-1], float(row[-1]), rank, "keyword")
+                for rank, row in enumerate(cur.fetchall(), start=1)
+            ]
 
     def delete_by_doc(self, doc_id: str) -> int:
         """Mark a document's chunks deleted - see `VectorIndex.delete_by_doc`."""
