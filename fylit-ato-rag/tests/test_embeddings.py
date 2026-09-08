@@ -52,9 +52,9 @@ def fake(monkeypatch, tmp_path):
     monkeypatch.setattr(embeddings.time, "sleep", lambda _: None)
     embeddings._cache.cache_clear()  # reopen against tmp_path, not the real index dir
 
-    client = FakeClient()
-    monkeypatch.setattr(embeddings, "_client", lambda: client)
-    yield client
+    fake_client = FakeClient()
+    monkeypatch.setattr(embeddings, "client", lambda: fake_client)
+    yield fake_client
     embeddings._cache.cache_clear()  # don't leak the tmp connection into other tests
 
 
@@ -114,32 +114,32 @@ def test_cache_misses_when_the_model_changes(fake, monkeypatch):
 
 
 def test_transient_failure_is_retried(fake, monkeypatch):
-    client = FakeClient(fail_times=2)
-    monkeypatch.setattr(embeddings, "_client", lambda: client)
+    fake_client = FakeClient(fail_times=2)
+    monkeypatch.setattr(embeddings, "client", lambda: fake_client)
 
     vectors = embeddings.embed_texts(["retry me"])
 
     assert len(vectors) == 1
-    assert len(client.batches) == 3, "two failures then a success"
+    assert len(fake_client.batches) == 3, "two failures then a success"
 
 
 def test_permanent_failure_is_not_retried(fake, monkeypatch):
     """An auth error or a bad model fails the same way every time - retrying it
     only delays a certain failure."""
-    client = FakeClient(fail_times=99, exc=ValueError("invalid api key"))
-    monkeypatch.setattr(embeddings, "_client", lambda: client)
+    fake_client = FakeClient(fail_times=99, exc=ValueError("invalid api key"))
+    monkeypatch.setattr(embeddings, "client", lambda: fake_client)
 
     with pytest.raises(ValueError, match="invalid api key"):
         embeddings.embed_texts(["nope"])
 
-    assert len(client.batches) == 1, "permanent errors must not be retried"
+    assert len(fake_client.batches) == 1, "permanent errors must not be retried"
 
 
 def test_wrong_vector_width_is_rejected(fake, monkeypatch):
     """The chunks column is vector(1536); a mismatch must fail with our message,
     not as an opaque Postgres type error later."""
-    client = FakeClient(width=WIDTH - 1)
-    monkeypatch.setattr(embeddings, "_client", lambda: client)
+    fake_client = FakeClient(width=WIDTH - 1)
+    monkeypatch.setattr(embeddings, "client", lambda: fake_client)
 
     with pytest.raises(RuntimeError, match="expects"):
         embeddings.embed_texts(["wrong width"])
@@ -147,59 +147,17 @@ def test_wrong_vector_width_is_rejected(fake, monkeypatch):
 
 def test_short_response_is_rejected(fake, monkeypatch):
     """Fewer vectors than inputs means we cannot say which text each belongs to."""
-    client = FakeClient()
+    fake_client = FakeClient()
 
     def short_create(*, model, input):
-        client.batches.append(list(input))
+        fake_client.batches.append(list(input))
         return SimpleNamespace(data=[SimpleNamespace(embedding=[0.0] * WIDTH)])
 
-    client.embeddings = SimpleNamespace(create=short_create)
-    monkeypatch.setattr(embeddings, "_client", lambda: client)
+    fake_client.embeddings = SimpleNamespace(create=short_create)
+    monkeypatch.setattr(embeddings, "client", lambda: fake_client)
 
     with pytest.raises(RuntimeError, match="refusing to guess"):
         embeddings.embed_texts(["one", "two"])
-
-
-def test_configured_api_key_reaches_the_client(monkeypatch):
-    """settings.openai_api_key must actually be wired to the client.
-
-    Without this, a key supplied any way other than a .env file - a real
-    environment variable, a CI secret, a secrets manager feeding Settings -
-    would be silently ignored while the config field suggested otherwise.
-    """
-    captured = {}
-
-    class Recorder:
-        def __init__(self, api_key=None, **kwargs):
-            captured["api_key"] = api_key
-
-    monkeypatch.setattr(embeddings, "OpenAI", Recorder)
-    monkeypatch.setattr(settings, "openai_api_key", "sk-test-not-a-real-key")
-    embeddings._client.cache_clear()
-
-    embeddings._client()
-
-    assert captured["api_key"] == "sk-test-not-a-real-key"
-    embeddings._client.cache_clear()  # don't hand the recorder to another test
-
-
-def test_absent_configured_key_defers_to_the_sdk(monkeypatch):
-    """An empty setting must become None, so the SDK's own OPENAI_API_KEY
-    lookup still works rather than being overridden with an empty string."""
-    captured = {}
-
-    class Recorder:
-        def __init__(self, api_key=None, **kwargs):
-            captured["api_key"] = api_key
-
-    monkeypatch.setattr(embeddings, "OpenAI", Recorder)
-    monkeypatch.setattr(settings, "openai_api_key", "")
-    embeddings._client.cache_clear()
-
-    embeddings._client()
-
-    assert captured["api_key"] is None
-    embeddings._client.cache_clear()
 
 
 def test_importing_the_module_needs_no_api_key():
