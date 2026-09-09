@@ -108,5 +108,77 @@ def build(
     typer.echo(f"Wrote {len(rows)} questions to {path}")
 
 
+
+
+# Questions with no answer in an ATO corpus. Two kinds, because they fail
+# differently and a refusal metric that only sees one kind is easy to game:
+#
+#   off-topic      - obviously not tax. Retrieval returns nothing similar, so
+#                    the grounding gate catches these on similarity alone.
+#   out-of-scope   - genuinely tax-shaped, and genuinely not in this corpus:
+#                    other countries' regimes, invented schemes, professional
+#                    advice the ATO does not publish. These are the hard ones -
+#                    the vocabulary overlaps, so retrieval finds *something*.
+UNANSWERABLE = [
+    # off-topic
+    "What is the capital of France?",
+    "How do I bake sourdough bread?",
+    "Who won the 2019 Melbourne Cup?",
+    "Write me a poem about the ocean.",
+    "How do I fix a leaking tap?",
+    "What are the rules of cricket?",
+    "How do I train for a marathon?",
+    "Recommend a good science fiction novel.",
+    # out-of-scope but tax-shaped
+    "How does the United Kingdom's IR35 off-payroll rule work?",
+    "What is the corporate tax rate in Singapore for 2025?",
+    "How do I file a US Form 1040-NR as an Australian resident?",
+    "What is New Zealand's GST registration threshold?",
+    "How does Canada's TFSA contribution room carry forward?",
+    "What are the ATO's internal audit selection algorithms?",
+    "Which tax agent in Sydney should I hire?",
+    "What will the tax-free threshold be in 2035?",
+    "How much revenue did the ATO collect from cryptocurrency audits in 2026?",
+    "What is the penalty under section 999-99 of the ITAA 1997?",
+]
+
+
+@app.command()
+def unanswerable(
+    out: str = typer.Option("data/eval/questions.jsonl", help="Question set to append to"),
+) -> None:
+    """Append the unanswerable questions, so refusal rate can be measured.
+
+    Without these the eval set is all answerable and a system that never refuses
+    scores perfectly - which is the failure mode the guide calls out, since
+    refusing when the evidence is thin is a feature rather than a shortfall.
+    """
+    path = Path(out)
+    existing = []
+    if path.exists():
+        with open(path, encoding="utf-8") as fh:
+            existing = [json.loads(line) for line in fh if line.strip()]
+
+    already = {r["question"] for r in existing if not r.get("answerable", True)}
+    added = [
+        {"question": q, "answerable": False, "chunk_id": None, "doc_id": None,
+         "source_title": None}
+        for q in UNANSWERABLE
+        if q not in already
+    ]
+
+    # Anything already in the file predates this flag and is answerable.
+    for row in existing:
+        row.setdefault("answerable", True)
+
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.writelines(json.dumps(row) + "\n" for row in existing + added)
+
+    answerable_n = sum(1 for r in existing if r.get("answerable", True))
+    typer.echo(
+        f"Wrote {len(existing) + len(added)} questions to {path} "
+        f"({answerable_n} answerable, {len(already) + len(added)} unanswerable)"
+    )
+
 if __name__ == "__main__":
     app()

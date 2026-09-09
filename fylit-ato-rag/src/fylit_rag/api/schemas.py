@@ -3,6 +3,11 @@
 The API always returns: Answer (or controlled refusal), Useful Resources
 (source titles + URLs when evidence was used), Diagnostics (timing +
 retrieval details, for developers only - never shown to customers).
+
+Diagnostics carries no passage text, no prompt and no chunk content - only
+counts, timings and the name of whatever guardrail intervened. It is safe to log
+and safe to return, but it is for developers, and a customer-facing UI should
+not render it.
 """
 
 from pydantic import BaseModel, Field
@@ -24,6 +29,12 @@ class Diagnostics(BaseModel):
     generation_ms: float | None = None
     chunks_considered: int | None = None
     refused: bool = False
+    # Names what stopped or altered the answer - "insufficient_evidence",
+    # "personalised_advice", "rate_limited". None when nothing intervened.
+    guardrail: str | None = None
+    # How many retrieved passages contained instruction-like text that had to be
+    # neutralised. Non-zero is worth alerting on: it means someone is trying.
+    injection_findings: int = 0
 
 
 class AskResponse(BaseModel):
