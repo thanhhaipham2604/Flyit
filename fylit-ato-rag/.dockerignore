@@ -1,0 +1,51 @@
+# Everything the image does not need. Without this the build context is ~878 MB
+# and is re-sent to the daemon on every build; with it, a few hundred kilobytes.
+#
+# The two big ones are deliberate and worth naming:
+#
+#   data/   the ATO corpus, the decoded-frame cache and the embedding cache
+#           (~580 MB). The corpus is mounted at runtime by docker-compose and
+#           lives on a volume in Kubernetes - baking it into the image would
+#           make every rebuild reship it and pin the index to the image tag.
+#   .venv/  a host virtualenv (~285 MB) built against the host's Python. It
+#           would be shadowed by the image's own install and, if it were ever
+#           picked up instead, would fail on a different interpreter version.
+
+# Local data and caches
+data/
+runs/
+*.sqlite3
+*.npy
+
+# Host virtualenvs
+.venv/
+venv/
+env/
+
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# VCS and editor
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+
+# Secrets - must never be baked into a layer
+.env
+.env.*
+!.env.example
+
+# Tests and docs are not needed to run the service
+tests/
+docs/
+*.md
+!README.md
