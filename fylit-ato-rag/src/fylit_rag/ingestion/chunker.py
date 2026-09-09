@@ -255,9 +255,10 @@ def chunk_document(
     """Cut one cleaned document into indexable chunks.
 
     `metadata` is an enriched document as `ingestion.pipeline` emits it. The
-    financial-year column is fed from `financial_years` (the list), never from
-    `primary_financial_year` - see the note in `ingestion.metadata`, which warns
-    that collapsing to the primary year silently drops the others.
+    financial-year column preserves all values from `financial_years` and also
+    includes `primary_financial_year` when that stronger inferred value is not
+    already present. This preserves multi-year applicability without dropping a
+    known primary year.
 
     `chunk_id` is `doc_id#ordinal`, so re-ingesting an unchanged document
     overwrites its rows instead of duplicating them. `content_hash` is the hash
@@ -268,6 +269,18 @@ def chunk_document(
 
     last_updated = parse_last_updated(metadata.get("last_updated_display"))
     financial_year = list(metadata.get("financial_years") or [])
+
+    primary_financial_year = metadata.get(
+        "primary_financial_year"
+    )
+
+    if (
+        primary_financial_year
+        and primary_financial_year not in financial_year
+    ):
+        financial_year.append(
+            primary_financial_year
+        )
 
     return [
         ChunkRecord(
