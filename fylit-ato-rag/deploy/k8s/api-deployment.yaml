@@ -13,25 +13,78 @@ spec:
       labels:
         app: fylit-rag-api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
           image: fylit-rag-api:local   # build locally; load into kind/minikube
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           envFrom:
             - configMapRef:
                 name: fylit-rag-config
             - secretRef:
-                name: fylit-rag-secrets
-          readinessProbe:
+                name: fylit-rag-secrets   # OPENAI_API_KEY + DATABASE_URL
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # readOnlyRootFilesystem is on, so anything that writes needs an
+            # explicit mount. The embedding cache lives under INDEX_DIR.
+            - name: tmp
+              mountPath: /tmp
+          # Liveness asks "is this process alive?" and must not touch Postgres:
+          # a probe that depends on the database restarts every pod whenever the
+          # database is slow, turning a blip into an outage.
+          livenessProbe:
             httpGet:
               path: /health
               port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            failureThreshold: 3
+          # Readiness asks "can this pod actually answer?" - /ready checks that
+          # the chunks table exists and holds embedded content. A pod pointed at
+          # an empty index returns nothing but refusals, which looks like a
+          # working service and is not one.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          # Generation takes a few seconds, so a slow first response during
+          # startup is normal and must not be read as a failed start.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 30
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
             limits:
               memory: 512Mi
-# TODO: add a postgres StatefulSet + PVC (or a Helm chart - ADR-0003).
-# DATABASE_URL above carries a dev password; move it to the Secret with it.
+      volumes:
+        - name: tmp
+          emptyDir: {}
+# Two things this manifest does not solve, named rather than left to be
+# discovered in production:
+#
+# 1. RATE LIMITING IS PER REPLICA. slowapi counts in process memory, so two
+#    replicas allow twice RATE_LIMIT_PER_MINUTE. Point the limiter at Redis
+#    (Limiter(storage_uri=...)) before the limit is load-bearing.
+#
+# 2. THE INDEX MUST BE BUILT SEPARATELY. Nothing here runs scripts/ingest.py;
+#    the API only reads. Run it as a Job against the same database before the
+#    first rollout, or every pod will start ready=false with an empty index.
