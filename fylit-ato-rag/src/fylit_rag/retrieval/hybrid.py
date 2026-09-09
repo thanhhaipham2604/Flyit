@@ -51,6 +51,9 @@ class FusedResult:
     result: SearchResult
     score: float
     sources: dict[str, int] = field(default_factory=dict)
+    # Set by `retrieval.rerank`; kept separate from `score` so the fused score
+    # that produced the shortlist is still visible after reranking.
+    rerank_score: float | None = None
 
     @property
     def chunk_id(self) -> str:

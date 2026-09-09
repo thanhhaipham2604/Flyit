@@ -18,17 +18,16 @@ import time
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
 from openai import (
     APIConnectionError,
     APITimeoutError,
     InternalServerError,
-    OpenAI,
     RateLimitError,
 )
 
 from fylit_rag.config import settings
 from fylit_rag.indexing.schema import dimensions_for
+from fylit_rag.openai_client import client
 
 # How many texts to send in a single API request.
 BATCH_SIZE = 100
@@ -45,25 +44,6 @@ TRANSIENT_ERRORS = (
     APITimeoutError,
     InternalServerError,
 )
-
-
-@lru_cache(maxsize=1)
-def _client() -> OpenAI:
-    """The OpenAI client, built on first use.
-
-    Deliberately not at import time: `schema.py` is imported by tests that run
-    before anything is configured, and this module sits in the same package.
-    Constructing the client here means importing `embeddings` never needs an API
-    key, and only actually embedding does.
-
-    The key comes from `settings`, which is the one place configuration is
-    declared - so a key supplied any way pydantic-settings understands (a real
-    environment variable, a CI secret) reaches the client, not just one written
-    into a .env file. `load_dotenv()` stays as the fallback for the latter, and
-    passing None lets the SDK fall back to OPENAI_API_KEY itself.
-    """
-    load_dotenv()
-    return OpenAI(api_key=settings.openai_api_key or None)
 
 
 # ---------------------------------------------------------------- cache
@@ -143,7 +123,7 @@ def _embed_one_batch(batch: list[str]) -> list[list[float]]:
     """
     for attempt in range(MAX_RETRIES):
         try:
-            response = _client().embeddings.create(
+            response = client().embeddings.create(
                 model=settings.embedding_model,
                 input=batch,
             )

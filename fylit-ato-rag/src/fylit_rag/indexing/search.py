@@ -131,6 +131,36 @@ def build_where(filters: dict | None = None) -> tuple[str, list]:
     return (" AND ".join(clauses) if clauses else "TRUE"), params
 
 
+def fetch_embeddings(conn, chunk_ids: list[str], *, table: str | None = None) -> dict[str, list]:
+    """Embeddings for specific chunks, keyed by chunk_id.
+
+    Reranking by diversity needs to compare candidates with each other, which
+    means their vectors - but carrying 1,536 floats per row through every search
+    result would bloat the common path for the sake of one optional strategy.
+    Chunks with no embedding are simply absent from the result.
+    """
+    if not chunk_ids:
+        return {}
+    table = table_name(table)
+    with conn.cursor() as cur:
+        cur.execute(
+            f"SELECT chunk_id, embedding FROM {table} "
+            "WHERE chunk_id = ANY(%s) AND embedding IS NOT NULL",
+            (chunk_ids,),
+        )
+        return {
+            chunk_id: [float(x) for x in _parse_vector(vector)]
+            for chunk_id, vector in cur.fetchall()
+        }
+
+
+def _parse_vector(value):
+    """pgvector hands back either a list (register_vector) or its text form."""
+    if isinstance(value, str):
+        return [float(x) for x in value.strip("[]").split(",") if x]
+    return value
+
+
 def table_name(table: str | None = None) -> str:
     """Table names come from our own settings, never user input - psycopg cannot
     parameterise an identifier, so this is the one place it is interpolated."""

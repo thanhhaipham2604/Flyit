@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     generation_model: str = "gpt-4o-mini"
 
+    # Which reranker runs on the query path: fusion (RRF order, free),
+    # mmr (diversity, free) or llm (gpt-4o-mini, costs a call per query).
+    # See ADR-0003 for the comparison behind the default.
+    rerank_strategy: str = "fusion"
+
     corpus_dir: str = "data/ato_corpus"
     index_dir: str = "data/index"
 
