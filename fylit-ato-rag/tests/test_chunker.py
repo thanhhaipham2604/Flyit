@@ -181,17 +181,51 @@ def test_metadata_lands_on_every_chunk():
         assert c.status is Status.ACTIVE
 
 
-def test_financial_year_uses_the_list_not_the_primary_year():
-    """ingestion.metadata warns that collapsing to the primary year silently
-    drops the others, and the column is text[] NOT NULL."""
-    chunks = chunk_document("doc-1", sample_markdown(), SAMPLE_META)
-    assert chunks[0].financial_year == ["2023-24", "2024-25"]
+def test_financial_year_preserves_existing_year_list():
+    """Existing multi-year applicability must be preserved."""
+    chunks = chunk_document(
+        "doc-1",
+        sample_markdown(),
+        SAMPLE_META,
+    )
+
+    assert chunks[0].financial_year == [
+        "2023-24",
+        "2024-25",
+    ]
+
+
+def test_primary_financial_year_is_added_when_list_is_empty():
+    """A strongly inferred primary FY must reach the chunk index."""
+    meta = SAMPLE_META | {
+        "financial_years": [],
+        "primary_financial_year": "2023-24",
+    }
+
+    chunks = chunk_document(
+        "doc-1",
+        sample_markdown(),
+        meta,
+    )
+
+    assert chunks[0].financial_year == [
+        "2023-24"
+    ]
 
 
 def test_evergreen_documents_get_an_empty_year_list():
-    """74% of the corpus names no year; empty list means evergreen, never NULL."""
-    meta = SAMPLE_META | {"financial_years": []}
-    chunks = chunk_document("doc-1", sample_markdown(), meta)
+    """A document with no year evidence remains evergreen."""
+    meta = SAMPLE_META | {
+        "financial_years": [],
+        "primary_financial_year": None,
+    }
+
+    chunks = chunk_document(
+        "doc-1",
+        sample_markdown(),
+        meta,
+    )
+
     assert chunks[0].financial_year == []
 
 

@@ -812,6 +812,73 @@ def test_mytax_url_year_is_converted_to_financial_year():
     )
 
 
+def test_paper_tax_return_url_year_is_converted_to_financial_year():
+    """A dated paper-return URL identifies its Australian FY."""
+    doc = make_year_doc(
+        url=(
+            "https://www.ato.gov.au/"
+            "individuals-and-families/"
+            "your-tax-return/"
+            "instructions-to-complete-your-tax-return/"
+            "paper-tax-return-instructions/"
+            "2024/"
+            "tax-return/"
+            "deduction-questions-d1-d10/"
+            "d5-other-work-related-expenses-2024"
+        ),
+        title=(
+            "D5 Other work-related expenses 2024"
+        ),
+    )
+
+    result = infer_primary_year(doc)
+
+    assert (
+        result["primary_financial_year"]
+        == "2023-24"
+    )
+
+    assert result["tax_year"] == "2024"
+
+    assert (
+        result["fy_source"]
+        == "paper_tax_return_url_tax_year"
+    )
+
+    assert (
+        result["fy_confidence"]
+        == "high"
+    )
+
+
+def test_generic_year_in_unrelated_url_is_not_treated_as_paper_tax_year():
+    """An unrelated four-digit year must not become a tax-return FY."""
+    doc = make_year_doc(
+        url=(
+            "https://www.ato.gov.au/"
+            "individuals-and-families/"
+            "income-deductions-offsets-and-records/"
+            "income-you-must-declare/"
+            "compensation-and-insurance-payments/"
+            "2019-robodebt-class-action-settlement-payments"
+        ),
+        title=(
+            "2019 Robodebt class action "
+            "settlement payments"
+        ),
+    )
+
+    result = infer_primary_year(doc)
+
+    assert (
+        result["primary_financial_year"]
+        is None
+    )
+
+    assert result["tax_year"] is None
+    assert result["fy_source"] is None
+
+
 def test_strong_applicability_statement_assigns_high_confidence():
     doc = make_year_doc(
         content=(
