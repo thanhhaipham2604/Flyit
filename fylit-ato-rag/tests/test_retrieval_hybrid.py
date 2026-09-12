@@ -35,8 +35,15 @@ def test_active_only_by_default():
 def test_active_none_searches_superseded_content_too():
     """A question scoped to a past year needs the content that is no longer current."""
     sql, params = build_where({"active": None})
-    assert sql == "TRUE"
-    assert params == []
+    assert sql == "status <> %s"
+    assert params == ["deleted"]
+
+
+def test_deleted_content_is_excluded_by_default():
+    """Deleted corpus files must not remain answerable on the normal path."""
+    sql, params = build_where({})
+    assert "active = %s" in sql
+    assert params == [True]
 
 
 def test_year_filter_keeps_evergreen_content():

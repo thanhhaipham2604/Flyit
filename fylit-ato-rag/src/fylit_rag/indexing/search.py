@@ -89,8 +89,8 @@ def build_where(filters: dict | None = None) -> tuple[str, list]:
 
     ``active``
         Defaults to True - retrieval answers with current guidance unless asked
-        otherwise. Pass None to search superseded and deleted content too, which
-        is what a question scoped to a past year needs.
+        otherwise. Pass None to include superseded guidance for historical
+        questions, while deleted corpus content remains excluded.
     ``financial_year``
         Matches evergreen content as well as content tagged with that year.
     ``version`` / ``doc_id``
@@ -114,6 +114,9 @@ def build_where(filters: dict | None = None) -> tuple[str, list]:
     if active is not None:
         clauses.append("active = %s")
         params.append(bool(active))
+    else:
+        clauses.append("status <> %s")
+        params.append("deleted")
 
     year = filters.get("financial_year")
     if year:

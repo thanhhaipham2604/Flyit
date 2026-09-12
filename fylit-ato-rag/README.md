@@ -45,12 +45,23 @@ docs/           architecture notes + ADRs
 ## Getting started
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env       # add your OpenAI key
-make ingest                # index the corpus in data/ato_corpus
-make api                   # run the API on :8000 (docs at /docs)
+copy .env.example .env     # PowerShell; add your OpenAI key
+python scripts/ingest.py   # preprocess, migrate, chunk and embed the corpus
+uvicorn fylit_rag.api.main:app --host 0.0.0.0 --port 8000
 ```
+
+Open `http://127.0.0.1:8000/` for the browser interface. Questions may be
+written in any language; the answer follows the question's language when the
+retrieved ATO evidence supports it. The API documentation remains available at
+`http://127.0.0.1:8000/docs`.
+
+The ingest command reruns the database bootstrap safely. Existing indexes are
+migrated to the FAQ-aware `embedding_text` column and pending vectors are
+recomputed automatically.
 
 Or with Docker: `docker compose up --build`.
 

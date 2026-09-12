@@ -29,8 +29,9 @@ from pathlib import Path
 
 import typer
 
+from fylit_rag.config import settings
 from fylit_rag.indexing import store
-from fylit_rag.indexing.bootstrap import connect, wait_for_postgres
+from fylit_rag.indexing.bootstrap import bootstrap, connect
 from fylit_rag.ingestion.chunker import chunk_document
 from fylit_rag.ingestion.pipeline import run_preprocessing
 
@@ -138,12 +139,26 @@ def run(
     diff = result["incremental_diff"]
     docs = load_enriched(Path(result["paths"]["enriched_corpus"]))
 
-    wait_for_postgres()
+    bootstrap()
     with connect() as conn:
-        report = index_documents(conn, docs, diff["new_ids"], diff["changed_ids"])
-        report.new = diff["new"]
-        report.changed = diff["changed"]
-        report.unchanged = diff["unchanged"]
+        indexed_chunks = conn.execute(
+            f"SELECT count(*) FROM {settings.chunks_table}"
+        ).fetchone()[0]
+        if indexed_chunks == 0 and docs:
+            # The preprocessing manifest can outlive a fresh database volume.
+            # In that case the diff correctly says "unchanged", but the index
+            # still needs every document once.
+            new_ids = list(docs)
+            changed_ids = []
+            report = index_documents(conn, docs, new_ids, changed_ids)
+            report.new = len(new_ids)
+            report.changed = 0
+            report.unchanged = 0
+        else:
+            report = index_documents(conn, docs, diff["new_ids"], diff["changed_ids"])
+            report.new = diff["new"]
+            report.changed = diff["changed"]
+            report.unchanged = diff["unchanged"]
 
         for doc_id in diff["deleted_ids"]:
             store.mark_deleted(conn, doc_id)
@@ -156,14 +171,14 @@ def run(
     for err in report.errors:
         print(f"  ! {err}")
 
-    if embed and report.embeddings_invalidated:
+    if embed:
         # Deliberately after the commit: embedding is slow, paid and external,
         # so an interruption there must leave a complete index with some vectors
         # missing - which the next run finishes - not a half-written index.
         from fylit_rag.indexing.run_embeddings import run as run_embeddings
 
         run_embeddings()
-    elif embed:
+    else:
         print("No embeddings needed - every chunk already has a current vector.")
 
     return report

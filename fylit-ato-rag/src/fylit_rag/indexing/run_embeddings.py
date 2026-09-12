@@ -39,7 +39,8 @@ def run() -> None:
         while True:
             # 1. Fetch a batch of chunks that still need an embedding.
             rows = conn.execute(
-                f'SELECT chunk_id, "text" FROM {table} '
+                f'SELECT chunk_id, COALESCE(NULLIF(embedding_text, \'\'), "text") '
+                f'FROM {table} '
                 "WHERE embedding IS NULL LIMIT %s",
                 (FETCH_SIZE,),
             ).fetchall()

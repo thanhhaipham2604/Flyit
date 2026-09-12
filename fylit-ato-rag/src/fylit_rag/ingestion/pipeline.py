@@ -910,9 +910,7 @@ def run(
 
     typer.echo(
         "Primary FY assigned: "
-        f"{year_summary[
-            'documents_with_primary_financial_year'
-        ]}"
+        f"{year_summary['documents_with_primary_financial_year']}"
     )
 
     typer.echo(

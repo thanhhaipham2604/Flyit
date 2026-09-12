@@ -55,6 +55,10 @@ _HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 _TABLE_ROW = re.compile(r"^\s*\|")
 _LIST_ITEM = re.compile(r"^\s*([-*+]|\d+[.)])\s+")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z(\"'])")
+_QUESTION_HEADING = re.compile(
+    r"^(?:question\s*:|what|when|where|which|who|why|how|can|could|do|does|is|are|will|should)\b.*(?:\?|$)",
+    re.IGNORECASE,
+)
 
 
 def _block_kind(line: str) -> str:
@@ -244,6 +248,18 @@ def _merge_short(pairs: list[tuple[list[str], str]]) -> list[tuple[list[str], st
     return merged
 
 
+def _embedding_text(path: list[str], text: str) -> str:
+    """Use the answer body as the semantic representation of an FAQ chunk."""
+    if not path or not _QUESTION_HEADING.match(path[-1].strip()):
+        return text
+    heading = path[-1].strip()
+    body = "\n".join(
+        line for line in text.splitlines()
+        if line.lstrip("#").strip() != heading
+    ).strip()
+    return body or text
+
+
 def chunk_document(
     doc_id: str,
     cleaned_text: str,
@@ -289,6 +305,7 @@ def chunk_document(
             chunk_ordinal=ordinal,
             content_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
             text=text,
+            embedding_text=_embedding_text(path, text),
             heading_path=list(path),
             source_title=metadata.get("title") or "",
             source_url=metadata.get("source_url") or "",
