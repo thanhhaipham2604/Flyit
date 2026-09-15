@@ -17,15 +17,17 @@ runs/
 *.sqlite3
 *.npy
 
-# Host virtualenvs
-.venv/
-venv/
-env/
+# Host virtualenvs. The **/ matters: unlike .gitignore, a bare pattern here only
+# matches at the context root, so `.venv/` alone would let scripts/.venv through
+# `COPY scripts ./scripts`.
+**/.venv/
+**/venv/
+**/env/
 
-# Python build artefacts
-__pycache__/
-*.py[cod]
-*.egg-info/
+# Python build artefacts - nested under src/, which the build stage copies whole
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
 build/
 dist/
 .pytest_cache/
