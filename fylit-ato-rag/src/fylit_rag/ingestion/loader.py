@@ -46,16 +46,16 @@ log = logging.getLogger(__name__)
 #   Page body...
 #
 HEADER_RE = re.compile(
-    r"^#\s*(?P<title>.+?)\s*\n"
+    r"^#\s*(?P<title>.+?)\s*\n" # Title
     r".*?"
-    r"^>\s*\*\*Source:\*\*\s*(?P<source>\S+)\s*$"
+    r"^>\s*\*\*Source:\*\*\s*(?P<source>\S+)\s*$" # URl
+    r".*?" 
+    r"^>\s*\*\*Scraped:\*\*\s*(?P<scraped>.+?)\s*$" # Timestamp
     r".*?"
-    r"^>\s*\*\*Scraped:\*\*\s*(?P<scraped>.+?)\s*$"
+    r"^>\s*\*\*Menu Path:\*\*\s*(?P<menu_path>.+?)\s*$" # Breadcrumb
+    r"(?:.*?^\*\*Description:\*\*\s*(?P<description>.+?)\s*$)?" # Optional description
     r".*?"
-    r"^>\s*\*\*Menu Path:\*\*\s*(?P<menu_path>.+?)\s*$"
-    r"(?:.*?^\*\*Description:\*\*\s*(?P<description>.+?)\s*$)?"
-    r".*?"
-    r"^---\s*$",
+    r"^---\s*$", #Divider
     re.MULTILINE | re.DOTALL,
 )
 
