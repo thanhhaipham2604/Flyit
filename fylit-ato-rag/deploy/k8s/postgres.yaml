@@ -1,0 +1,92 @@
+# Postgres + pgvector, the store behind both halves of retrieval (ADR-0002).
+#
+# A StatefulSet rather than a Deployment: this pod owns a volume with the index
+# in it. A Deployment would be free to start a second pod against the same claim
+# during a rollout, and two postgres processes on one data directory corrupt it.
+#
+# One replica, deliberately. Replicating Postgres properly means streaming
+# replication and failover, which is an operator's job (CloudNativePG, Zalando)
+# rather than something to improvise in a manifest. For the local deployment this
+# is honest; for production, adopt an operator.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: fylit-rag
+spec:
+  # Headless: clients resolve the pod directly. There is one, and a load
+  # balancer in front of a single stateful pod only adds a hop.
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: fylit-rag
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          # pgvector ships the extension prebuilt; plain postgres:16 would need
+          # it compiled in before CREATE EXTENSION vector could succeed.
+          image: pgvector/pgvector:pg16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: fylit
+            - name: POSTGRES_DB
+              value: fylit
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fylit-rag-secrets
+                  key: POSTGRES_PASSWORD
+            # The image only initialises a fresh data directory when this
+            # subdirectory is used; mounting a PVC at /var/lib/postgresql/data
+            # directly leaves a lost+found that initdb refuses to write into.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "fylit", "-d", "fylit"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "fylit", "-d", "fylit"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            # 55k chunks with 1536-d vectors and an HNSW index sit comfortably
+            # under 2 GB; 10 GB leaves room for the corpus to grow.
+            storage: 10Gi

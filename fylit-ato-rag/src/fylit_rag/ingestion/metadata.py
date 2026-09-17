@@ -313,6 +313,21 @@ MYTAX_URL_YEAR_RE = re.compile(
 )
 
 
+# Paper tax-return instruction URLs use the tax-return end year.
+#
+# Example:
+#
+#   /paper-tax-return-instructions/2024/
+#
+# corresponds to the 2023-24 Australian financial year.
+PAPER_TAX_RETURN_URL_YEAR_RE = re.compile(
+    r"/paper-tax-return-instructions/"
+    r"(?P<year>20\d{2})"
+    r"(?:/|$)",
+    re.IGNORECASE,
+)
+
+
 # --------------------------------------------------------------------------- #
 # Normalisation
 # --------------------------------------------------------------------------- #
@@ -568,6 +583,48 @@ def infer_primary_year(
                     "high",
                 "fy_evidence":
                     mytax_match
+                    .group(0)
+                    .strip("/"),
+            }
+        )
+
+        return result
+
+    # ------------------------------------------------------------------ #
+    # Rule 2B — known paper tax-return URL tax year
+    # ------------------------------------------------------------------ #
+
+    paper_return_match = (
+        PAPER_TAX_RETURN_URL_YEAR_RE.search(
+            url
+        )
+    )
+
+    if paper_return_match:
+        tax_year = int(
+            paper_return_match.group(
+                "year"
+            )
+        )
+
+        financial_year = (
+            tax_year_to_financial_year(
+                tax_year
+            )
+        )
+
+        result.update(
+            {
+                "primary_financial_year":
+                    financial_year,
+                "tax_year":
+                    str(tax_year),
+                "fy_source":
+                    "paper_tax_return_url_tax_year",
+                "fy_confidence":
+                    "high",
+                "fy_evidence":
+                    paper_return_match
                     .group(0)
                     .strip("/"),
             }
