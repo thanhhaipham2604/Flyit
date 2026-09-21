@@ -74,7 +74,14 @@ def ask(request: Request, body: AskRequest) -> AskResponse:
 
     question = memory.contextualise(body.session_id or "", body.question)
 
-    filters = {"financial_year": body.financial_year} if body.financial_year else None
+    # A year-scoped question must be allowed to see superseded guidance. The
+    # year predicate still keeps evergreen content, while active=True would
+    # incorrectly hide the historical version the caller asked for.
+    filters = (
+        {"financial_year": body.financial_year, "active": None}
+        if body.financial_year
+        else None
+    )
 
     started = time.perf_counter()
     try:

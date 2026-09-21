@@ -74,6 +74,14 @@ def test_health_needs_no_dependencies():
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_web_interface_advertises_multilingual_questions():
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "any language" in response.text
+    assert "same language" in response.text
+
+
 def test_config_never_leaks_secrets():
     body = client.get("/config").json()
     assert "embedding_model" in body
@@ -110,6 +118,12 @@ def test_a_short_question_is_rejected_by_validation():
 
 def test_a_missing_question_is_rejected():
     assert client.post("/ask", json={}).status_code == 422
+
+
+def test_invalid_financial_year_is_rejected():
+    assert client.post(
+        "/ask", json={"question": "What is the tax-free threshold?", "financial_year": "2024"}
+    ).status_code == 422
 
 
 # ---------------------------------------------------------------- guards

@@ -112,6 +112,7 @@ class ChunkRecord:
 
     # content
     text: str
+    embedding_text: str | None = None
     heading_path: list[str] = field(default_factory=list)
 
     # citation - these two are what the API hands back as Useful Resources
@@ -157,6 +158,7 @@ class ChunkRecord:
             "chunk_ordinal": self.chunk_ordinal,
             "content_hash": self.content_hash,
             "text": self.text,
+            "embedding_text": self.embedding_text or self.text,
             "heading_path": self.heading_path,
             "source_title": self.source_title,
             "source_url": self.source_url,
@@ -201,6 +203,7 @@ CREATE TABLE IF NOT EXISTS {table} (
                       CHECK (status IN ('active', 'superseded', 'deleted')),
     superseded_by   text,
     indexed_at      timestamptz NOT NULL DEFAULT now(),
+    embedding_text  text NOT NULL DEFAULT '',
     embedding       vector({dim}),
     active          boolean GENERATED ALWAYS AS (status = 'active') STORED,
     search_vector   tsvector GENERATED ALWAYS AS (to_tsvector('english', "text")) STORED
@@ -238,5 +241,6 @@ def ddl_statements(table: str, dim: int) -> list[str]:
     return [
         "CREATE EXTENSION IF NOT EXISTS vector",
         _TABLE_DDL.format(table=table, dim=dim).strip(),
+        f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS embedding_text text NOT NULL DEFAULT ''",
         *(stmt.format(table=table) for stmt in _INDEX_DDL),
     ]

@@ -103,6 +103,14 @@ def bootstrap(*, recreate: bool = False) -> BootstrapReport:
         # interpolating it here is safe - psycopg cannot parameterise identifiers.
         for statement in ddl_statements(table, dim):
             conn.execute(statement)  # type: ignore[arg-type]
+
+        # Existing databases predate answer-focused FAQ embeddings. Empty
+        # values identify rows added by the migration; clear their vectors so
+        # the embedding worker recomputes them from the new representation.
+        conn.execute(
+            f'UPDATE {table} SET embedding_text = "text", embedding = NULL '
+            "WHERE embedding_text = ''"
+        )
         conn.commit()
 
     return BootstrapReport(table=table, created=not existed, vector_size=dim)

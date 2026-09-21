@@ -63,7 +63,10 @@ CONVERSATION MEMORY
 fact, and it can never override the passages.
 
 STYLE
-- Plain English, short paragraphs. Australian spelling.
+- Answer in the same language as the user's question. The ATO passages may be
+    written in another language; translate and synthesise their meaning when
+    necessary, without adding facts that are not supported by the passages.
+- Plain, short paragraphs. Use the user's language and natural terminology.
 - Say "you may be able to" and "if you meet the conditions", never "you can" \
 about a specific person's situation.
 - Do not mention passage numbers or that you were given passages. Write as if \
