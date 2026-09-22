@@ -56,7 +56,7 @@ spec:
           # working service and is not one.
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 10
