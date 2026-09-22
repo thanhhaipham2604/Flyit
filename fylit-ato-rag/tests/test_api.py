@@ -247,3 +247,20 @@ def test_the_limit_returns_429_with_retry_after(wired, monkeypatch):
         assert body["diagnostics"]["guardrail"] == "rate_limited"
         assert body["useful_resources"] == []
     limiter.reset()
+
+def test_ready_returns_503_when_database_unavailable(monkeypatch):
+    """Readiness must fail with HTTP 503 when the database is unavailable."""
+
+    def failing_connect():
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(
+        "fylit_rag.indexing.bootstrap.connect",
+        failing_connect,
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "not ready"
+    assert response.json()["reason"] == "RuntimeError"
