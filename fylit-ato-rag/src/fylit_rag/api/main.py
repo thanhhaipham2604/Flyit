@@ -7,13 +7,15 @@ depends on a database restarts the pod when the database is slow, which is the
 opposite of helpful; /health says "this process is up", and /ready says whether
 it can actually serve.
 """
-
+# Import FastAPI and ratelimit package
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from fylit_rag.api.rate_limit import limiter, rate_limit_handler
 from fylit_rag.api.routes import router
 
+# The FastAPI app is created at import time so that the ASGI server can find it.
 app = FastAPI(
     title="Fylit ATO RAG API",
     version="0.1.0",
@@ -22,7 +24,6 @@ app = FastAPI(
         "Not personal tax advice."
     ),
 )
-
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 app.include_router(router)
@@ -35,7 +36,7 @@ def health() -> dict:
 
 
 @app.get("/ready")
-def ready() -> dict:
+def ready():
     """Readiness: can this instance actually answer a question?
 
     Checks that the chunks table exists and holds embedded content, because an
@@ -50,9 +51,24 @@ def ready() -> dict:
             embedded = conn.execute(
                 f"SELECT count(*) FROM {settings.chunks_table} WHERE embedding IS NOT NULL"
             ).fetchone()[0]
-    except Exception as exc:  # noqa: BLE001 - a readiness probe reports, it does not raise
-        return {"status": "not ready", "reason": type(exc).__name__}
+
+    except Exception as exc:  # noqa: BLE001 - readiness reports failure
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not ready",
+                "reason": type(exc).__name__,
+            },
+        )
 
     if not embedded:
-        return {"status": "not ready", "reason": "index is empty", "embedded_chunks": 0}
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not ready",
+                "reason": "index is empty",
+                "embedded_chunks": 0,
+            },
+        )
+
     return {"status": "ready", "embedded_chunks": embedded}
