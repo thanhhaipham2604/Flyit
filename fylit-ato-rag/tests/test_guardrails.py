@@ -7,7 +7,13 @@ classifier on the query path.
 
 import pytest
 
-from fylit_rag.generation.prompts import DISCLAIMER, EVIDENCE_CLOSE, EVIDENCE_OPEN, REFUSAL_MESSAGE
+from fylit_rag.generation.prompts import (
+    DISCLAIMER,
+    EVIDENCE_CLOSE,
+    EVIDENCE_OPEN,
+    REFUSAL_MESSAGE,
+    SAFETY_REFUSAL,
+)
 from fylit_rag.guardrails.injection import neutralise, sanitise_evidence
 from fylit_rag.guardrails.input_guards import check_input
 from fylit_rag.guardrails.output_guards import check_output, controlled_refusal, find_violations
@@ -200,7 +206,7 @@ def test_refund_guarantees_are_replaced_with_a_refusal(answer):
     """Not repairable: editing it out would change what the answer claims."""
     out = check_output({"answer": answer, "sources": [{"url": "u"}]})
     assert out["refused"] is True
-    assert out["answer"] == REFUSAL_MESSAGE
+    assert out["answer"] == SAFETY_REFUSAL
 
 
 @pytest.mark.parametrize(
@@ -215,6 +221,78 @@ def test_refund_guarantees_are_replaced_with_a_refusal(answer):
 def test_personalised_or_assumed_entitlement_is_replaced(answer):
     out = check_output({"answer": answer, "sources": [{"url": "u"}]})
     assert out["refused"] is True
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        # The ATO's own phrasing for a general rule. Blocking this refused most
+        # deduction questions - see the note on ASSUMED_ENTITLEMENT.
+        "Expenses you can claim include tools and equipment you buy for work.",
+        # Verbatim from the answer to "How much can I claim as a builder?", which
+        # the old bare "you can claim" pattern threw away.
+        (
+            "You can claim the cost of tools and equipment used for work. If a tool "
+            "costs more than $300, you claim the decline in value over several years."
+        ),
+        # And from "How much can I claim as a software developer?".
+        (
+            "You can claim the cost as a deduction in the year you purchase it if it "
+            "has an effective life of one year or less."
+        ),
+        "You may be able to claim a deduction if you meet the conditions.",
+        # Verbatim from the software-developer answer: a definite object, but the
+        # sentence states the condition it depends on.
+        (
+            "If the cost is $300 or less, you can claim it in the year you buy it, "
+            "provided certain conditions are met."
+        ),
+        "You can claim it over its effective life when it costs more than $300.",
+    ],
+)
+def test_general_rule_phrasing_is_not_blocked(answer):
+    """Stating what the rule covers is the job; it is not an assumed entitlement."""
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+
+    assert out["refused"] is False
+    assert answer in out["answer"]
+    assert find_violations(answer) == []
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You can definitely claim this deduction.",
+        "You can claim it.",
+        "You can claim the full amount.",
+        "You can claim your home office costs.",
+        "You qualify for the small business concession.",
+        "Your deduction will be $1,200.",
+    ],
+)
+def test_asserted_entitlement_is_still_blocked(answer):
+    """Deciding this person's case, rather than naming what the rule covers."""
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+
+    assert out["refused"] is True
+    assert "assumed_entitlement" in out["guardrail"]
+
+
+def test_a_guardrail_block_does_not_claim_the_evidence_was_missing():
+    """The two refusals are different failures and must not share wording."""
+    out = check_output({"answer": "You can definitely claim this.", "sources": [{"url": "u"}]})
+
+    assert out["answer"] == SAFETY_REFUSAL
+    assert out["answer"] != REFUSAL_MESSAGE
+    assert out["guardrail"] == "assumed_entitlement"
+
+
+def test_thin_evidence_still_reports_thin_evidence():
+    """The other half of the pair: nothing retrieved still says exactly that."""
+    out = check_output({"answer": "anything", "refused": True})
+
+    assert out["answer"] == REFUSAL_MESSAGE
+    assert out["guardrail"] == "insufficient_evidence"
 
 
 def test_a_missing_disclaimer_is_repaired_not_refused():

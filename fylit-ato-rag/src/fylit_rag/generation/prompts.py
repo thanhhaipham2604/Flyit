@@ -78,6 +78,17 @@ REFUSAL_MESSAGE = (
     "to answer that reliably."
 )
 
+# A refusal forced by a guardrail rather than by missing evidence. The two are
+# different failures and must not share wording: saying "I don't have enough
+# information" about an answer we retrieved good evidence for sends the reader
+# hunting for a retrieval problem that is not there, and hides the real cause.
+SAFETY_REFUSAL = (
+    "I can't answer that as asked, because the answer would read as advice about "
+    "your own tax position. Ask about the general rule instead - what the ATO "
+    "requires and the conditions that apply - or speak to a registered tax agent "
+    "about your circumstances."
+)
+
 DISCLAIMER = (
     "This is general information only, not personal tax advice. "
     "Consider speaking to a registered tax agent about your situation."
