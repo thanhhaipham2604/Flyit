@@ -74,6 +74,13 @@ def load_enriched(path: Path) -> dict[str, dict]:
     return docs
 
 
+def _persist_state(path: Path, state: dict[str, str]) -> None:
+    """Persist the incremental checkpoint after a successful DB commit."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(state, fh, indent=2)
+
+
 def index_documents(
     conn,
     docs: dict[str, dict],
@@ -130,13 +137,16 @@ def run(
     full_rebuild: bool = False,
     embed: bool = True,
 ) -> IndexReport:
-    """Preprocess, index the changed documents, then fill in the embeddings."""
+    """Preprocess, index changed documents, then checkpoint and embed."""
     result = run_preprocessing(
         corpus_dir=Path(corpus_dir),
         output_dir=Path(output_dir),
         full_rebuild=full_rebuild,
+        persist_state=False,
     )
     diff = result["incremental_diff"]
+    pending_state = result["pending_state"]
+    state_path = Path(result["paths"]["state"])
     docs = load_enriched(Path(result["paths"]["enriched_corpus"]))
 
     bootstrap()
@@ -165,6 +175,11 @@ def run(
         report.deleted = diff["deleted"]
 
         conn.commit()
+
+    # The checkpoint must advance only after the database transaction succeeds.
+    # If bootstrap/indexing/commit raises, this line is never reached and the
+    # previous state remains available for the next incremental run.
+    _persist_state(state_path, pending_state)
 
     for line in report.summary():
         print(line)
