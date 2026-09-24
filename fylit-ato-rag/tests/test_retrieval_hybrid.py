@@ -133,9 +133,48 @@ def test_citation_fields_survive_fusion():
     assert citation["chunk_id"] == "a#1"
     assert "version" in citation
 
+def test_retrieve_reuses_a_supplied_query_vector(monkeypatch):
+    """A supplied vector is reused instead of generating another embedding."""
+    supplied_vector = [0.1, 0.2, 0.3]
 
+    def explode(_):
+        raise AssertionError(
+            "embedder should not be called when query_vector is supplied"
+        )
+
+    class FakeVectorIndex:
+        def __init__(self, conn):
+            pass
+
+        def search(self, query_vector, top_k, filters):
+            assert query_vector == supplied_vector
+            return []
+
+    class FakeKeywordIndex:
+        def __init__(self, conn):
+            pass
+
+        def search(self, query, top_k, filters):
+            return []
+
+    monkeypatch.setattr(
+        "fylit_rag.retrieval.hybrid.VectorIndex",
+        FakeVectorIndex,
+    )
+    monkeypatch.setattr(
+        "fylit_rag.retrieval.hybrid.KeywordIndex",
+        FakeKeywordIndex,
+    )
+
+    output = retrieve(
+        "capital gains tax",
+        conn=object(),
+        embed=explode,
+        query_vector=supplied_vector,
+    )
+
+    assert output == []
 # ---------------------------------------------------------------- against a real index
-
 
 @pytest.fixture
 def conn():

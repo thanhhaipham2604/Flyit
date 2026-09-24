@@ -96,6 +96,7 @@ def retrieve(
     *,
     conn=None,
     embed=None,
+    query_vector=None,
 ) -> list[FusedResult]:
     """Run both searches, blend with reciprocal rank fusion, dedupe by chunk.
 
@@ -106,13 +107,15 @@ def retrieve(
     if not query or not query.strip():
         return []
 
-    if embed is None:
-        from fylit_rag.indexing.embeddings import embed_texts
+    if query_vector is None:
+        if embed is None:
+            from fylit_rag.indexing.embeddings import embed_texts
 
-        embed = embed_texts
+            embed = embed_texts
+
+        query_vector = embed([query])[0]
 
     pool = max(top_k * CANDIDATE_MULTIPLIER, top_k)
-    query_vector = embed([query])[0]
 
     def _search(connection):
         return {

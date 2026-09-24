@@ -209,9 +209,96 @@ def test_a_retrieval_failure_does_not_leak_a_stack_trace(monkeypatch):
     assert body["diagnostics"]["guardrail"] == "retrieval_failed"
     assert body["answer"] != REFUSAL_MESSAGE
 
+def test_mmr_api_passes_embeddings_to_reranker(wired, monkeypatch):
+    """The live /ask MMR path must supply the vectors MMR requires."""
+    query_vector = [0.1, 0.2, 0.3]
 
+    candidate_embeddings = {
+        "d#0": [0.1, 0.2, 0.3],
+        "d#1": [0.3, 0.2, 0.1],
+    }
+
+    seen = {}
+
+    monkeypatch.setattr(
+        settings,
+        "rerank_strategy",
+        "mmr",
+    )
+
+    monkeypatch.setattr(
+        routes,
+        "embed_texts",
+        lambda texts: [query_vector],
+    )
+
+    def fake_retrieve(
+        query,
+        top_k,
+        filters,
+        *,
+        conn,
+        query_vector=None,
+    ):
+        seen["retrieve_query_vector"] = query_vector
+        return evidence()
+
+    monkeypatch.setattr(
+        routes,
+        "retrieve",
+        fake_retrieve,
+    )
+
+    def fake_fetch_embeddings(conn, chunk_ids):
+        seen["chunk_ids"] = chunk_ids
+        return candidate_embeddings
+
+    monkeypatch.setattr(
+        routes,
+        "fetch_embeddings",
+        fake_fetch_embeddings,
+    )
+
+    def fake_rerank(
+        query,
+        candidates,
+        top_n=5,
+        **kwargs,
+    ):
+        seen["rerank_query_vector"] = kwargs.get(
+            "query_vector"
+        )
+        seen["embeddings"] = kwargs.get(
+            "embeddings"
+        )
+        return candidates[:top_n]
+
+    monkeypatch.setattr(
+        routes,
+        "rerank",
+        fake_rerank,
+    )
+
+    response = client.post(
+        "/ask",
+        json={
+            "question": "What is the tax-free threshold?"
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert seen["retrieve_query_vector"] == query_vector
+
+    assert seen["rerank_query_vector"] == query_vector
+
+    assert seen["embeddings"] == candidate_embeddings
+
+    assert seen["chunk_ids"] == [
+        "d#0",
+        "d#1",
+    ]
 # ---------------------------------------------------------------- memory
-
 
 def test_a_session_remembers_the_previous_turn(wired):
     client.post("/ask", json={"question": "What is the tax-free threshold?", "session_id": "s1"})

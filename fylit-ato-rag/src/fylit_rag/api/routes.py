@@ -32,6 +32,8 @@ from fylit_rag.guardrails.input_guards import check_input
 from fylit_rag.guardrails.output_guards import check_output
 from fylit_rag.indexing.bootstrap import connect
 from fylit_rag.retrieval.hybrid import retrieve
+from fylit_rag.indexing.embeddings import embed_texts
+from fylit_rag.indexing.search import fetch_embeddings
 from fylit_rag.retrieval.rerank import rerank
 
 log = logging.getLogger(__name__)
@@ -86,8 +88,41 @@ def ask(request: Request, body: AskRequest) -> AskResponse:
     started = time.perf_counter()
     try:
         with connect() as conn:
-            candidates = retrieve(question, top_k=SHORTLIST, filters=filters, conn=conn)
-            evidence = rerank(question, candidates, top_n=EVIDENCE)
+            if settings.rerank_strategy == "mmr":
+                query_vector = embed_texts([question])[0]
+
+                candidates = retrieve(
+                    question,
+                    top_k=SHORTLIST,
+                    filters=filters,
+                    conn=conn,
+                    query_vector=query_vector,
+                )
+
+                candidate_embeddings = fetch_embeddings(
+                    conn,
+                    [candidate.chunk_id for candidate in candidates],
+                )
+
+                evidence = rerank(
+                    question,
+                    candidates,
+                    top_n=EVIDENCE,
+                    embeddings=candidate_embeddings,
+                    query_vector=query_vector,
+                )
+            else:
+                candidates = retrieve(
+                    question,
+                    top_k=SHORTLIST,
+                    filters=filters,
+                    conn=conn,
+                )
+                evidence = rerank(
+                    question,
+                    candidates,
+                    top_n=EVIDENCE,
+                )
     except Exception:
         # A database or embedding failure must not leak a stack trace to a
         # public endpoint, and must not look like "no ATO content covers this".
