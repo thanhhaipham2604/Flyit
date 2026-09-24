@@ -296,12 +296,16 @@ def test_thin_evidence_still_reports_thin_evidence():
 
 
 def test_a_missing_disclaimer_is_repaired_not_refused():
-    """Repairable: its absence does not make the answer wrong."""
+    """Repairable: its absence does not make the answer wrong.
+
+    The disclaimer travels in its own field, not appended to the answer text,
+    so callers that render both do not show it twice.
+    """
     out = check_output({"answer": "The threshold is $18,200.", "sources": [{"url": "u"}]})
 
     assert out["refused"] is False
-    assert DISCLAIMER in out["answer"]
     assert out["disclaimer"] == DISCLAIMER
+    assert DISCLAIMER not in out["answer"]
 
 
 def test_an_answer_without_sources_fails_closed():
