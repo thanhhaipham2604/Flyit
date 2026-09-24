@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import re
 
-from fylit_rag.generation.prompts import DISCLAIMER, REFUSAL_MESSAGE
+from fylit_rag.generation.prompts import DISCLAIMER, REFUSAL_MESSAGE, SAFETY_REFUSAL
 
 # Promising an outcome to this user. Distinct from explaining that refunds exist.
 REFUND_GUARANTEE = (
@@ -36,8 +36,43 @@ REFUND_GUARANTEE = (
 )
 
 # Telling this user a concession applies, rather than stating its conditions.
+#
+# A bare "you can claim" used to be enough to refuse, and that was wrong: it is
+# the ATO's own phrasing for stating a general rule ("Expenses you can claim
+# include tools you buy for work"), so it fired on most deduction answers and
+# replaced them with a refusal. Measured against the live index, it killed
+# perfectly good answers to "How much can I claim as a builder?" and "...as a
+# software developer?".
+#
+# What actually distinguishes an assumed entitlement is whether the sentence
+# names a condition. "You can claim it if the cost is $300 or less" states the
+# rule and leaves the reader to check it; "You can claim the full amount" has
+# decided their case. So the object alone is not enough to judge by - the test
+# is a definite object AND no condition in the same sentence. Emphatics
+# ("definitely", "certainly") assert entitlement whatever follows them.
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+_DEFINITE_CLAIM = re.compile(
+    r"\byou can claim (it|this|that|these|those|them|your|the full|the whole)\b",
+    re.IGNORECASE,
+)
+_CONDITION = re.compile(
+    r"\b(if|when|where|unless|provided|assuming|as long as|subject to|"
+    r"conditions?|eligib\w+|must|require\w*)\b",
+    re.IGNORECASE,
+)
+
+
+def _asserted_without_conditions(answer: str) -> bool:
+    """True when a sentence says the user can claim a specific thing, full stop."""
+    return any(
+        _DEFINITE_CLAIM.search(sentence) and not _CONDITION.search(sentence)
+        for sentence in _SENTENCE_SPLIT.split(answer or "")
+    )
+
+
 ASSUMED_ENTITLEMENT = (
-    re.compile(r"\byou can (definitely |certainly )?claim\b", re.IGNORECASE),
+    re.compile(r"\byou can (definitely|certainly|absolutely) claim\b", re.IGNORECASE),
+    _asserted_without_conditions,
     re.compile(r"\byou qualify for\b", re.IGNORECASE),
     re.compile(r"\byour deduction (is|will be)\b", re.IGNORECASE),
     re.compile(r"\byou (do not|don't) (need to|have to) (declare|report|pay)\b", re.IGNORECASE),
@@ -57,19 +92,40 @@ VIOLATIONS = {
 }
 
 
+def _matches(rule, answer: str) -> bool:
+    """A rule is either a compiled pattern or a predicate over the whole answer.
+
+    Predicates exist because some rules need more than one sentence's worth of
+    context - see `_asserted_without_conditions`.
+    """
+    return bool(rule(answer)) if callable(rule) else bool(rule.search(answer))
+
+
 def find_violations(answer: str) -> list[str]:
     """Which prohibited claims the answer makes, by name."""
+    answer = answer or ""
     return [
         name
-        for name, patterns in VIOLATIONS.items()
-        if any(p.search(answer or "") for p in patterns)
+        for name, rules in VIOLATIONS.items()
+        if any(_matches(rule, answer) for rule in rules)
     ]
+
+
+def refusal_message_for(reason: str) -> str:
+    """Which refusal wording a reason deserves.
+
+    A guardrail block and thin evidence are different failures. Reporting both as
+    "I don't have enough information" is a lie in the first case, and the one the
+    reader acts on - it points at retrieval when the evidence was fine.
+    """
+    names = {part.strip() for part in (reason or "").split(",")}
+    return SAFETY_REFUSAL if names & set(VIOLATIONS) else REFUSAL_MESSAGE
 
 
 def controlled_refusal(reason: str = "guardrail") -> dict:
     """The one shape a refusal may take, so callers cannot invent variants."""
     return {
-        "answer": REFUSAL_MESSAGE,
+        "answer": refusal_message_for(reason),
         "refused": True,
         "sources": [],
         "disclaimer": DISCLAIMER,
