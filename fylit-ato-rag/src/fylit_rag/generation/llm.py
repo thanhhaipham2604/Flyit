@@ -29,7 +29,11 @@ from openai import APIConnectionError, APITimeoutError, InternalServerError, Rat
 
 from fylit_rag.config import settings
 from fylit_rag.generation import prompts
-from fylit_rag.generation.grounding import evidence_strength, has_sufficient_evidence
+from fylit_rag.generation.grounding import (
+    evidence_strength,
+    has_sufficient_evidence,
+    verify_grounding,
+)
 from fylit_rag.guardrails.injection import sanitise_evidence
 from fylit_rag.openai_client import client
 
@@ -135,6 +139,9 @@ def generate_answer(question: str, evidence, history=None, *, complete=None) -> 
     # The model was told to reply with exactly this when the passages fall short.
     if answer.startswith(prompts.REFUSAL_MESSAGE[:40]):
         return _refusal("model_refused")
+
+    if not verify_grounding(answer, evidence):
+        return _refusal("ungrounded_numeric_claim")
 
     return {
         "answer": answer,

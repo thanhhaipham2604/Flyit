@@ -16,7 +16,11 @@ from pydantic import BaseModel, Field
 class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
     session_id: str | None = None
-    financial_year: str | None = None  # e.g. "2024-25"
+    financial_year: str | None = Field(
+        default=None,
+        pattern=r"^20\d{2}-\d{2}$",
+        description="Australian financial year, for example 2024-25",
+    )
 
 
 class Resource(BaseModel):

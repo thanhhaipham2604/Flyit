@@ -116,6 +116,12 @@ def test_the_system_prompt_states_the_non_negotiables():
     assert "instruction" in lowered, "injection defence must be stated"
 
 
+def test_the_system_prompt_preserves_the_question_language():
+    lowered = SYSTEM_PROMPT.lower()
+    assert "same language" in lowered
+    assert "another language" in lowered
+
+
 def test_the_user_message_puts_the_question_before_the_passages():
     """Otherwise the question is buried under thousands of characters of text."""
     message = build_user_message("What is the threshold?", "PASSAGES HERE")
@@ -144,6 +150,19 @@ def test_a_grounded_answer_carries_its_sources():
     assert out["refused"] is False
     assert out["sources"][0]["url"] == "https://ato.gov.au/threshold"
     assert out["disclaimer"] == DISCLAIMER
+
+
+def test_an_invented_figure_is_refused_in_live_generation():
+    evidence = [fused(text="The tax-free threshold is $18,200.")]
+
+    out = generate_answer(
+        "What is the threshold?",
+        evidence,
+        complete=lambda _: "The threshold is $25,000.",
+    )
+
+    assert out["refused"] is True
+    assert out["guardrail"] == "ungrounded_numeric_claim"
 
 
 def test_sources_come_from_the_chunks_not_the_model():

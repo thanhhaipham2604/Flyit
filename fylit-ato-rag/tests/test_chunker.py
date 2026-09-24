@@ -103,6 +103,19 @@ def test_every_chunk_carries_its_section_heading():
             assert path[-1] in text, "the section heading is missing from the chunk text"
 
 
+def test_faq_question_heading_uses_answer_for_embedding():
+    md = (
+        "# FAQ\n\n"
+        "## Can I claim the home office deduction?\n\n"
+        "You may be able to claim a deduction if you meet the conditions.\n"
+    )
+    chunk = chunk_document("faq", md, {"title": "FAQ"})[0]
+
+    assert "Can I claim the home office deduction?" in chunk.text
+    assert "You may be able to claim" in chunk.embedding_text
+    assert "Can I claim the home office deduction?" not in chunk.embedding_text
+
+
 def test_packing_many_blocks_stays_near_the_target():
     """A section of many paragraphs is packed to TARGET_CHARS, not to MAX."""
     para = "Sentence of body text for this section. " * 6      # ~240 chars each
