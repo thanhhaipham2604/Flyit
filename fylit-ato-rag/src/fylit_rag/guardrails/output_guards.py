@@ -111,9 +111,9 @@ def check_output(response: dict) -> dict:
     repaired = dict(response)
     repaired["sources"] = sources
     repaired["refused"] = False
-    # Repairable: a missing disclaimer does not make the answer wrong.
+    # The disclaimer travels in its own field, not appended to the answer text -
+    # otherwise callers that render both show it twice. controlled_refusal does
+    # the same, so every response carries it the same way.
     repaired["disclaimer"] = DISCLAIMER
-    if DISCLAIMER not in answer:
-        repaired["answer"] = f"{answer}\n\n{DISCLAIMER}"
     repaired.setdefault("guardrail", None)
     return repaired
