@@ -82,13 +82,9 @@ def test_web_interface_advertises_multilingual_questions():
     assert "same language" in response.text
 
 
-def test_config_never_leaks_secrets():
-    body = client.get("/config").json()
-    assert "embedding_model" in body
-    serialised = str(body)
-    assert settings.openai_api_key not in serialised or not settings.openai_api_key
-    assert "database_url" not in body
-    assert "postgresql://" not in serialised
+def test_config_endpoint_is_not_exposed():
+    response = client.get("/config")
+    assert response.status_code == 404
 
 
 # ---------------------------------------------------------------- /ask contract

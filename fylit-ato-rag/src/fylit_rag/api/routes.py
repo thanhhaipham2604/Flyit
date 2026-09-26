@@ -161,15 +161,3 @@ def ask(request: Request, body: AskRequest) -> AskResponse:
             injection_findings=findings,
         ),
     )
-
-
-@router.get("/config")
-def config() -> dict:
-    """What this instance is running. Useful in a demo, and safe to expose:
-    model names and limits, never the API key or the database URL."""
-    return {
-        "embedding_model": settings.embedding_model,
-        "generation_model": settings.generation_model,
-        "rerank_strategy": settings.rerank_strategy,
-        "rate_limit_per_minute": settings.rate_limit_per_minute,
-    }
