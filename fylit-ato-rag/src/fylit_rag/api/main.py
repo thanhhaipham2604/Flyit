@@ -9,7 +9,7 @@ it can actually serve.
 """
 # Import FastAPI and ratelimit package
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from fylit_rag.api.rate_limit import limiter, rate_limit_handler
