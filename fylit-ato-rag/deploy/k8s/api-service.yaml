@@ -6,6 +6,10 @@ metadata:
 spec:
   selector:
     app: fylit-rag-api
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
   ports:
     - port: 80
       targetPort: 8000

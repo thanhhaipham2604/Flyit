@@ -41,10 +41,17 @@ PERSONALISED_ADVICE = (
                r"\b(get back|owe|receive|be refunded|get as a refund)\b", re.IGNORECASE),
     re.compile(r"\bmy\b[^?\n]{0,30}\b(refund|tax bill|return|liability|assessment)s?\b"
                r"[^?\n]{0,30}\b(be|is|will)\b", re.IGNORECASE),
-    re.compile(r"\bwhat('?s| is) my\b[^?\n]{0,30}\b(tax|refund|rate|bracket|liability)\b", re.IGNORECASE),
-    re.compile(r"\bfile|lodge\b[^?\n]{0,20}\bmy (tax )?return for me\b", re.IGNORECASE),
+    re.compile(r"\bwhat('?s| is) my\b[^?\n]{0,30}\b(refund|rate|bracket|liability)\b", re.IGNORECASE),
+    re.compile(r"\b(?:file|lodge)\b[^?\n]{0,20}\bmy (tax )?return for me\b", re.IGNORECASE),
 )
 
+# "Avoid" can describe either unlawful tax avoidance/evasion or a legitimate
+# question about avoiding double taxation. Allow the specific double-taxation
+# phrasing while keeping ordinary "avoid tax" requests blocked.
+DOUBLE_TAXATION = re.compile(
+    r"\bavoid\s+(?:paying\s+)?tax(?:es)?\s+twice\b",
+    re.IGNORECASE,
+)
 # Asking for help breaking the law. Refused outright, and never retrieved for.
 UNLAWFUL = (
     re.compile(r"\b(avoid|evade|dodge|hide|conceal|not (declare|report))\b[^?\n]{0,30}"
@@ -99,9 +106,13 @@ def check_input(question: str) -> tuple[bool, str | None]:
 
     if len(question) > MAX_QUESTION_CHARS:
         return False, TOO_LONG_REFUSAL
-
-    if any(p.search(question) for p in UNLAWFUL):
+  
+    if (
+        not DOUBLE_TAXATION.search(question)
+        and any(p.search(question) for p in UNLAWFUL)
+    ):
         return False, UNLAWFUL_REFUSAL
+    
 
     if any(p.search(question) for p in USER_INJECTION):
         return False, INJECTION_REFUSAL
