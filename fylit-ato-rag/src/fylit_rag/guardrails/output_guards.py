@@ -50,9 +50,23 @@ REFUND_GUARANTEE = (
 # decided their case. So the object alone is not enough to judge by - the test
 # is a definite object AND no condition in the same sentence. Emphatics
 # ("definitely", "certainly") assert entitlement whatever follows them.
+#
+# The same test applies to two more shapes, for the same reason. ATO guidance is
+# written in the second person throughout, so "you don't have to pay X" and "you
+# should lodge Y" are how it states rules, not how it gives advice. Measured
+# against the live index, the bare patterns refused correct answers to "What is
+# the Medicare levy?" and "How do I amend a tax return?".
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _DEFINITE_CLAIM = re.compile(
     r"\byou can claim (it|this|that|these|those|them|your|the full|the whole)\b",
+    re.IGNORECASE,
+)
+_NO_OBLIGATION = re.compile(
+    r"\byou (do not|don't) (need to|have to) (declare|report|pay)\b",
+    re.IGNORECASE,
+)
+_DIRECTED_ACTION = re.compile(
+    r"\byou should (claim|deduct|declare|lodge)\b",
     re.IGNORECASE,
 )
 _CONDITION = re.compile(
@@ -62,12 +76,35 @@ _CONDITION = re.compile(
 )
 
 
-def _asserted_without_conditions(answer: str) -> bool:
-    """True when a sentence says the user can claim a specific thing, full stop."""
+def _without_conditions(trigger: re.Pattern[str], answer: str) -> bool:
+    """True when `trigger` fires in a sentence that names no condition."""
     return any(
-        _DEFINITE_CLAIM.search(sentence) and not _CONDITION.search(sentence)
+        trigger.search(sentence) and not _CONDITION.search(sentence)
         for sentence in _SENTENCE_SPLIT.split(answer or "")
     )
+
+
+def _asserted_without_conditions(answer: str) -> bool:
+    """True when a sentence says the user can claim a specific thing, full stop."""
+    return _without_conditions(_DEFINITE_CLAIM, answer)
+
+
+def _no_obligation_without_conditions(answer: str) -> bool:
+    """True when a sentence says an obligation does not apply, full stop.
+
+    "You don't have to pay the Medicare levy if your income is below the
+    threshold" states the rule; without the condition it has decided their case.
+    """
+    return _without_conditions(_NO_OBLIGATION, answer)
+
+
+def _directed_without_conditions(answer: str) -> bool:
+    """True when a sentence tells the user to take an action, full stop.
+
+    "You should lodge an amendment if you made a mistake" is ATO procedure;
+    "You should claim this deduction" has decided their case.
+    """
+    return _without_conditions(_DIRECTED_ACTION, answer)
 
 
 ASSUMED_ENTITLEMENT = (
@@ -75,13 +112,13 @@ ASSUMED_ENTITLEMENT = (
     _asserted_without_conditions,
     re.compile(r"\byou qualify for\b", re.IGNORECASE),
     re.compile(r"\byour deduction (is|will be)\b", re.IGNORECASE),
-    re.compile(r"\byou (do not|don't) (need to|have to) (declare|report|pay)\b", re.IGNORECASE),
+    _no_obligation_without_conditions,
 )
 
 # Acting as the user's adviser rather than explaining the rules.
 PERSONALISED = (
     re.compile(r"\b(i|we) (recommend|advise|suggest) (that )?you\b", re.IGNORECASE),
-    re.compile(r"\byou should (claim|deduct|declare|lodge)\b", re.IGNORECASE),
+    _directed_without_conditions,
     re.compile(r"\bin your (case|situation|circumstances)\b", re.IGNORECASE),
 )
 

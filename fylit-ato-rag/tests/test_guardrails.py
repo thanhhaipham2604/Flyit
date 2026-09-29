@@ -370,3 +370,50 @@ def test_controlled_refusal_has_one_shape():
         "disclaimer": DISCLAIMER,
         "guardrail": "testing",
     }
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You should lodge an amendment if you made a mistake on your return.",
+        "You should declare that income when you lodge your tax return.",
+    ],
+)
+def test_conditional_general_rules_are_not_personalised_advice(answer):
+    """The ATO states general rules in the second person.
+
+    "You should lodge an amendment if you made a mistake" is procedure, not
+    advice about this user's position. Blocking it refused correct answers
+    about how to amend a return.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You don't have to pay the Medicare levy if your income is below the threshold.",
+        "You should declare that income when you lodge your tax return.",
+    ],
+)
+def test_conditional_general_rules_are_not_violations(answer):
+    """ATO guidance is written in the second person with conditions attached.
+
+    "You don't have to pay X if Y" states a rule; without the condition it has
+    decided the reader's case. Blocking the conditional form refused correct
+    answers about the Medicare levy and about amending a return.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You don't have to pay the Medicare levy.",
+        "You should claim this deduction.",
+    ],
+)
+def test_unconditional_assertions_are_still_refused(answer):
+    """The narrowing must not open a hole: with no condition, these still decide
+    the reader's case and must be refused."""
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is True
