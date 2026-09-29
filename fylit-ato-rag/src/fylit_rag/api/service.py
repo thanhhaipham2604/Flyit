@@ -31,7 +31,7 @@ memory = ConversationMemory()
 
 # Number of passages retrieved before reranking and number retained as evidence.
 SHORTLIST = 30
-EVIDENCE = 5
+EVIDENCE = 15
 
 
 def _blocked(reason: str, guardrail: str) -> AskResponse:
@@ -150,6 +150,7 @@ def answer_question(body: AskRequest) -> AskResponse:
         generate_answer(
             question,
             evidence,
+            max_evidence=EVIDENCE,
         )
     )
 

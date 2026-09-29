@@ -42,9 +42,10 @@ REQUEST_TIMEOUT = 30.0
 MAX_RETRIES = 2
 TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)
 
-# Enough passages to answer from, few enough that the model reads all of them.
+# Fallback cap for callers that do not specify one. The API passes its own
+# value - see api.service.EVIDENCE - so changing this alone will not change
+# API behaviour.
 MAX_EVIDENCE = 5
-
 
 def _sources(evidence) -> list[dict]:
     """Citations, deduplicated by URL, in the order the evidence was ranked."""
@@ -96,8 +97,14 @@ def _complete(messages: list[dict]) -> str:
             time.sleep(2**attempt)
     raise AssertionError("unreachable: the loop either returns or raises")
 
-
-def generate_answer(question: str, evidence, history=None, *, complete=None) -> dict:
+def generate_answer(
+    question: str,
+    evidence,
+    history=None,
+    *,
+    complete=None,
+    max_evidence: int | None = None,
+) -> dict:
     """Answer from the supplied passages, or refuse.
 
     Returns ``{answer, refused, sources, disclaimer, guardrail, evidence}``.
@@ -107,7 +114,7 @@ def generate_answer(question: str, evidence, history=None, *, complete=None) -> 
     `complete` is injectable so tests exercise the assembly and the failure
     paths without an API.
     """
-    evidence = list(evidence or [])[:MAX_EVIDENCE]
+    evidence = list(evidence or [])[: max_evidence or MAX_EVIDENCE]
 
     if not has_sufficient_evidence(question, evidence):
         strength = evidence_strength(evidence)
