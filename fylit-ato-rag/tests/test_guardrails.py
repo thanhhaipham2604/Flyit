@@ -417,3 +417,20 @@ def test_unconditional_assertions_are_still_refused(answer):
     the reader's case and must be refused."""
     out = check_output({"answer": answer, "sources": [{"url": "u"}]})
     assert out["refused"] is True
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You can claim this rate for a maximum of 5,000 kilometres per car.",
+        "You can claim up to $300 of work expenses without written evidence.",
+    ],
+)
+def test_quantitative_limits_count_as_conditions(answer):
+    """A bound qualifies a claim as much as an eligibility test does.
+
+    "You can claim this rate for a maximum of 5,000 km" states the rule and
+    its limit; it has not decided the reader's case. Blocking it refused a
+    correct answer about the cents-per-kilometre method.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False

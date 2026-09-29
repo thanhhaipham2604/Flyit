@@ -71,7 +71,11 @@ _DIRECTED_ACTION = re.compile(
 )
 _CONDITION = re.compile(
     r"\b(if|when|where|unless|provided|assuming|as long as|subject to|"
-    r"conditions?|eligib\w+|must|require\w*)\b",
+    r"conditions?|eligib\w+|must|require\w*|"
+    # A quantitative limit qualifies the claim just as an eligibility test
+    # does: "you can claim this rate for a maximum of 5,000 km" states the
+    # rule and its bound, it does not decide the reader's case.
+    r"maximum|up to|limited to|capped|no more than)\b",
     re.IGNORECASE,
 )
 
