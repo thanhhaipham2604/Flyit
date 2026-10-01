@@ -434,3 +434,36 @@ def test_quantitative_limits_count_as_conditions(answer):
     """
     out = check_output({"answer": answer, "sources": [{"url": "u"}]})
     assert out["refused"] is False
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You should declare this income as business income in your tax return.",
+        "You should lodge your return by 31 October.",
+    ],
+)
+def test_obligations_are_not_personalised_advice(answer):
+    """Declaring and lodging are obligations, not entitlements.
+
+    The guard exists to stop the system deciding a concession applies to the
+    reader. Telling someone to declare income cannot over-claim on their
+    behalf, and blocking it refused a correct answer about gig income.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False
+
+
+def test_refuting_a_myth_is_not_a_violation():
+    """Correcting misinformation means quoting it.
+
+    "It is not true that you don't have to declare cash income" says the
+    opposite of the phrase it contains. Refusing it left the user's wrong
+    belief uncorrected, which is the worst outcome available.
+    """
+    out = check_output(
+        {
+            "answer": "No, it is not true that you don't have to declare cash income.",
+            "sources": [{"url": "u"}],
+        }
+    )
+    assert out["refused"] is False

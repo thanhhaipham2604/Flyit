@@ -66,16 +66,20 @@ _NO_OBLIGATION = re.compile(
     re.IGNORECASE,
 )
 _DIRECTED_ACTION = re.compile(
-    r"\byou should (claim|deduct|declare|lodge)\b",
+    # Only entitlements. "You should declare this income" and "you should
+    # lodge by 31 October" are obligations - they cannot over-claim on the
+    # reader's behalf, and blocking them refused correct answers about
+    # declaring gig income.
+    r"\byou should (claim|deduct)\b",
     re.IGNORECASE,
 )
 _CONDITION = re.compile(
     r"\b(if|when|where|unless|provided|assuming|as long as|subject to|"
     r"conditions?|eligib\w+|must|require\w*|"
-    # A quantitative limit qualifies the claim just as an eligibility test
-    # does: "you can claim this rate for a maximum of 5,000 km" states the
-    # rule and its bound, it does not decide the reader's case.
-    r"maximum|up to|limited to|capped|no more than)\b",
+    r"maximum|up to|limited to|capped|no more than|"
+    # Correcting a myth means quoting it: "it is not true that you don't
+    # have to declare cash income" says the opposite of what it contains.
+    r"not true|untrue|incorrect|myth|misconception|mistaken)\b",
     re.IGNORECASE,
 )
 
