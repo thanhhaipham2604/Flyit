@@ -44,6 +44,8 @@ TARGET_CHARS = 1200
 
 # A paragraph run longer than this is split on sentence boundaries. Tables and
 # lists are exempt - rule 2 above.
+# An exceptionally long structure can exceed a downstream embedding limit;
+# keep it intact here and handle that case separately rather than splitting it.
 MAX_CHARS = 2000
 
 # Below this a chunk is mostly heading and carries little to embed. Such a
@@ -133,7 +135,7 @@ def _split_paragraph(text: str, limit: int) -> list[str]:
     return parts or [text]
 
 
-def _sections(text: str) -> Iterator[tuple[list[str], list[str]]]:
+def _sections(text: str) -> Iterator[tuple[list[str], list[tuple[str, str]]]]:
     """Yield (heading_path, body_blocks) for each heading-delimited section.
 
     Content before the first heading is yielded with an empty path, so a
@@ -154,20 +156,24 @@ def _sections(text: str) -> Iterator[tuple[list[str], list[str]]]:
             body = []
             started = True
         else:
-            body.append(block)
+            body.append((kind, block))
 
     if started or body:
         yield [h for _, h in path], body
 
 
-def _pack(blocks: Sequence[str]) -> list[str]:
+def _pack(blocks: Sequence[tuple[str, str]]) -> list[str]:
     """Pack blocks into TARGET_CHARS-sized texts, never splitting a structure."""
     out: list[str] = []
     current: list[str] = []
     size = 0
 
-    for block in blocks:
-        pieces = [block] if len(block) <= MAX_CHARS else _split_paragraph(block, TARGET_CHARS)
+    for kind, block in blocks:
+        pieces = (
+            _split_paragraph(block, TARGET_CHARS)
+            if kind == "para" and len(block) > MAX_CHARS
+            else [block]
+        )
         for piece in pieces:
             if current and size + len(piece) + 2 > TARGET_CHARS:
                 out.append("\n\n".join(current))

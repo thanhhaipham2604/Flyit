@@ -59,13 +59,15 @@ def test_a_deeper_heading_pops_back_to_its_own_level():
 
 
 def test_a_table_is_never_split():
-    row = "| a | b |\n"
-    table = "| h | h |\n|---|---|\n" + row * 400          # far beyond MAX_CHARS
+    row = "| Taxable amount. More details. | Notes. |\n"
+    table = "| Header | Details |\n| --- | --- |\n" + row * 100
+    table = table[:3798]
+    assert len(table) == 3798
     md = f"# T\n\n## Rates\n\n{table}\n"
-    texts = [t for _, t in paths_and_texts(md)]
-    holding = [t for t in texts if "| a | b |" in t]
+    texts = [text for _, text in chunk_text(md)]
+    holding = [text for text in texts if "| Taxable amount." in text]
     assert len(holding) == 1, "the table was split across chunks"
-    assert holding[0].count("| a | b |") == 400, "rows were lost"
+    assert table in holding[0], "table content was changed"
 
 
 def test_a_list_is_never_split():

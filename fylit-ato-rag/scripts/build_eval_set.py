@@ -73,10 +73,11 @@ def build(
     random.Random(seed).shuffle(candidates)
     candidates = candidates[:n]
     typer.echo(f"Sampled {len(candidates)} chunks from distinct documents")
+    openai_client = client()
 
     for i, (chunk_id, doc_id, text, title) in enumerate(candidates, start=1):
         try:
-            response = client.chat.completions.create(
+            response = openai_client.chat.completions.create(
                 model=settings.generation_model,
                 temperature=0.3,
                 response_format={"type": "json_object"},
@@ -86,9 +87,9 @@ def build(
                 ],
             )
             question = json.loads(response.choices[0].message.content)["question"].strip()
-        except Exception as exc:  # noqa: BLE001 - one bad chunk must not lose the run
-            typer.echo(f"  ! {chunk_id}: {type(exc).__name__}")
-            continue
+        except Exception as exc:  # noqa: BLE001 - preserve chunk context and fail loudly
+            typer.echo(f"Failed to generate a question for {chunk_id}: {exc}", err=True)
+            raise
 
         rows.append(
             {
