@@ -40,6 +40,7 @@ DIMENSIONS = {
     # name: (env var, default values)
     "k": ("EVIDENCE_COUNT", ["3", "5", "8", "15", "20", "30"]),
     "rerank": ("RERANK_STRATEGY", ["fusion", "mmr", "llm"]),
+    "family": ("FAMILY_CAP", ["0", "2", "3"]),
     "shortlist": ("SHORTLIST", ["10", "20", "30", "50"]),
 }
 

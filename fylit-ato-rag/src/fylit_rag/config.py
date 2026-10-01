@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # cited list grows, because the tail of the ranking is where the noise is.
     citation_limit: int = 5
 
+    # Distinct near-identical documents allowed into the shortlist. The ATO
+    # republishes the same page per income year, and eighteen copies of one
+    # page can fill the shortlist so the page that answers the question never
+    # gets in. 0 disables the cap.
+    family_cap: int = 2
+
     corpus_dir: str = "data/ato_corpus"
     index_dir: str = "data/index"
 
