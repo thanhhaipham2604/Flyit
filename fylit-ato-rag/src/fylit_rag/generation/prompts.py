@@ -13,6 +13,9 @@ weakest: a model can be talked out of a prompt. `guardrails.output_guards`
 re-checks the finished answer, and `generation.grounding` can refuse before the
 model is called at all. Anything that matters is enforced twice.
 """
+from __future__ import annotations
+
+from datetime import date
 
 # Passages are wrapped in these markers so the model can be told, precisely,
 # which span of the conversation is data rather than instruction.
@@ -38,6 +41,11 @@ about how tax usually works.
 say plainly which part you cannot answer.
 - Quote figures, rates, thresholds and dates exactly as the passages give them. \
 Never adjust, convert, or update a number.
+- The user turn begins with today's date and the current financial year. When \
+the user says "this financial year", "this year", "currently" or "at the \
+moment", they mean that year. Always state which income year your figures are \
+for. If the passages only cover earlier years, say so plainly - do not present \
+an older year's figures as current.
 
 
 WHEN TO REFUSE
@@ -117,6 +125,31 @@ DISCLAIMER = (
     "Consider speaking to a registered tax agent about your situation."
 )
 
+def current_financial_year(today: date | None = None) -> str:
+    """The Australian financial year containing `today`, as "2026-27".
+
+    The year runs 1 July to 30 June, so January to June belongs to the year
+    that began in the previous calendar year.
+    """
+    today = today or date.today()
+    start = today.year if today.month >= 7 else today.year - 1
+    return f"{start}-{str(start + 1)[2:]}"
+
+def date_context(today: date | None = None) -> str:
+    """The dating facts handed to the model with every question.
+
+    Also fed to the grounding check: these are facts the system supplied, so an
+    answer repeating them invents nothing. Without that, "due by 31 October
+    2027" was rejected as an ungrounded figure. The end date is stated because
+    the model derives it - "2027" is not a substring of "2026-27".
+    """
+    today = today or date.today()
+    year = current_financial_year(today)
+    return (
+        f"Today is {today:%d %B %Y}. The current Australian financial year is "
+        f"{year}, which ends on 30 June {int(year[:4]) + 1}."
+    )
+
 
 def build_user_message(question: str, evidence_block: str, history: str = "") -> str:
     """Assemble the user turn: question, optional history, delimited passages.
@@ -125,7 +158,7 @@ def build_user_message(question: str, evidence_block: str, history: str = "") ->
     of characters of passage text, and the passages come last so the delimiters
     are the most recent thing the model read before answering.
     """
-    parts = [f"Question: {question}"]
+    parts = [date_context(), f"Question: {question}"]
     if history:
         parts.append(f"\nEarlier in this conversation (for reference only):\n{history}")
     parts.append(f"\nATO passages:\n{evidence_block}")

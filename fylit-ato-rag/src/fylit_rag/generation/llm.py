@@ -152,7 +152,8 @@ def generate_answer(
     if answer.startswith(prompts.REFUSAL_MESSAGE[:40]):
         return _refusal("model_refused")
 
-    if not verify_grounding(answer, evidence, question):
+        # The dating facts were supplied by us, so they ground the answer too.
+    if not verify_grounding(answer, evidence, f"{question} {prompts.date_context()}"):
         return _refusal("ungrounded_numeric_claim")
 
     return {
