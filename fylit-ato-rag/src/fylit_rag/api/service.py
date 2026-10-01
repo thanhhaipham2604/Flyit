@@ -29,9 +29,10 @@ log = logging.getLogger(__name__)
 # In-process and bounded conversation memory.
 memory = ConversationMemory()
 
-# Number of passages retrieved before reranking and number retained as evidence.
-SHORTLIST = 30
-EVIDENCE = 15
+# Passages retrieved before reranking, and passages kept as evidence for the
+# prompt. From settings so K can be swept without rebuilding - see config.
+SHORTLIST = settings.shortlist
+EVIDENCE = settings.evidence_count
 
 
 def _blocked(reason: str, guardrail: str) -> AskResponse:

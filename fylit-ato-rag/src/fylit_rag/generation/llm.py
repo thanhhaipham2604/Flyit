@@ -48,7 +48,12 @@ TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError, Interna
 MAX_EVIDENCE = 5
 
 def _sources(evidence) -> list[dict]:
-    """Citations, deduplicated by URL, in the order the evidence was ranked."""
+    """Citations, deduplicated by URL, in the order the evidence was ranked.
+
+    Capped at `settings.citation_limit`. Every evidence passage used to become
+    a citation, so a K of 15 produced 12 links, most of them passages the
+    answer never drew on.
+    """
     seen: set[str] = set()
     sources = []
     for candidate in evidence:
@@ -67,7 +72,7 @@ def _sources(evidence) -> list[dict]:
                 ),
             }
         )
-    return sources
+    return sources[: settings.citation_limit]
 
 
 def _refusal(reason: str) -> dict:

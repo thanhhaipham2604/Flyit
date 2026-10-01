@@ -14,6 +14,16 @@ class Settings(BaseSettings):
     # mmr (diversity, free) or llm (gpt-4o-mini, costs a call per query).
     # See ADR-0003 for the comparison behind the default.
     rerank_strategy: str = "fusion"
+    # Passages retrieved before reranking, and passages kept as evidence for
+    # the prompt. Both are settings rather than constants because tuning K is
+    # pointless if changing it costs an image rebuild.
+    shortlist: int = 30
+    evidence_count: int = 15
+    # Citations shown to the user. Lower than evidence_count on purpose: the
+    # model needs breadth to answer, the reader needs the few sources that
+    # carry the answer. Measured - precision falls from 57% to 37% as the
+    # cited list grows, because the tail of the ranking is where the noise is.
+    citation_limit: int = 5
 
     corpus_dir: str = "data/ato_corpus"
     index_dir: str = "data/index"
