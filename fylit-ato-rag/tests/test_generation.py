@@ -3,7 +3,7 @@
 No network. `generate_answer` takes an injectable `complete`, and memory takes an
 injectable `rewrite`, so every path here runs without an API key.
 """
-
+from datetime import date
 import pytest
 
 from fylit_rag.generation.grounding import (
@@ -21,6 +21,7 @@ from fylit_rag.generation.prompts import (
     REFUSAL_MESSAGE,
     SYSTEM_PROMPT,
     build_user_message,
+    current_financial_year,
 )
 from fylit_rag.indexing.search import SearchResult
 from fylit_rag.retrieval.hybrid import FusedResult
@@ -102,6 +103,32 @@ def test_verify_grounding_ignores_prose_numbers():
     """'two conditions' and 'step 3' are prose, not claims."""
     evidence = [fused(text="There are conditions to meet.")]
     assert verify_grounding("There are 2 conditions and 3 steps.", evidence) is True
+
+def test_verify_grounding_accepts_a_figure_from_the_question():
+    """The user's own number is not a claim about tax.
+
+    "I bought a laptop for $1,800" makes $1,800 the user's fact, so repeating
+    it back invents nothing. Without this, any question containing an amount
+    was refused, because the echoed figure appeared in no passage.
+    """
+    evidence = [fused(text="Items costing $300 or less can be claimed immediately.")]
+    question = "I bought a laptop for $1,800 for work. Can I claim the full amount?"
+    assert verify_grounding(
+        "You cannot claim the full $1,800 because it costs more than $300.",
+        evidence,
+        question,
+    ) is True
+
+
+def test_verify_grounding_still_catches_a_figure_computed_from_the_question():
+    """The narrowing must not let arithmetic through.
+
+    $342 appears in neither the question nor the passages, so a figure the
+    model worked out from the user's numbers is still ungrounded.
+    """
+    evidence = [fused(text="Include all your employment income.")]
+    question = "I get $38 an hour and work 9 hours a week."
+    assert verify_grounding("Your weekly earnings are $342.", evidence, question) is False    
 
 
 # ---------------------------------------------------------------- prompts
@@ -305,3 +332,22 @@ def test_memory_never_becomes_evidence():
     generate_answer("q2", [fused(score=0.8), fused(score=0.78, chunk_id="d#1")], complete=capture)
 
     assert "45%" not in captured["user"], "history was not passed, so it cannot leak"
+
+def test_current_financial_year_runs_july_to_june():
+    """The Australian year starts 1 July, so January belongs to the year that
+    began in the previous calendar year."""
+    assert current_financial_year(date(2026, 10, 1)) == "2026-27"
+    assert current_financial_year(date(2026, 7, 1)) == "2026-27"
+    assert current_financial_year(date(2026, 6, 30)) == "2025-26"
+    assert current_financial_year(date(2025, 1, 15)) == "2024-25"
+
+
+def test_the_user_turn_states_todays_date():
+    """The model cannot resolve "this financial year" without knowing the date.
+
+    Without it, a question naming no year returned a three-year-old rate table
+    and labelled it as current.
+    """
+    message = build_user_message("What is the tax bracket this year?", "passages")
+    assert "current Australian financial year is" in message
+    assert message.index("Question:") > message.index("financial year is")

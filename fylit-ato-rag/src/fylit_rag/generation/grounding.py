@@ -103,7 +103,7 @@ def has_sufficient_evidence(
     return strength["top"] >= min_similarity and strength["supporting"] >= min_supporting
 
 
-def verify_grounding(answer: str, evidence) -> bool:
+def verify_grounding(answer: str, evidence, question: str = "") -> bool:
     """Post-hoc check that the answer's specifics appear in the passages.
 
     Deliberately narrow: it checks **numbers**, not prose. Paraphrase detection
@@ -113,6 +113,12 @@ def verify_grounding(answer: str, evidence) -> bool:
     a grounded figure must appear verbatim in the evidence.
 
     Returns True when every number in the answer is found in the passages.
+    
+    Figures the user supplied are not claims about tax. "I bought a laptop for
+    $1,800" makes $1,800 the user's own fact, and repeating it back invents
+    nothing - so the question counts as grounding for its own numbers.
+    Without this, any question containing an amount was refused, because the
+    echoed figure appeared in no passage.
     """
     import re
 
@@ -126,5 +132,5 @@ def verify_grounding(answer: str, evidence) -> bool:
         return True
 
     normalise = lambda s: s.replace(",", "").replace("$", "").rstrip("%")
-    haystack = normalise(corpus)
+    haystack = normalise(corpus) + " " + normalise(question or "")
     return all(normalise(f) in haystack for f in figures)

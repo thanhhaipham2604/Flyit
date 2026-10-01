@@ -374,3 +374,100 @@ def test_controlled_refusal_has_one_shape():
         "disclaimer": DISCLAIMER,
         "guardrail": "testing",
     }
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You should lodge an amendment if you made a mistake on your return.",
+        "You should declare that income when you lodge your tax return.",
+    ],
+)
+def test_conditional_general_rules_are_not_personalised_advice(answer):
+    """The ATO states general rules in the second person.
+
+    "You should lodge an amendment if you made a mistake" is procedure, not
+    advice about this user's position. Blocking it refused correct answers
+    about how to amend a return.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You don't have to pay the Medicare levy if your income is below the threshold.",
+        "You should declare that income when you lodge your tax return.",
+    ],
+)
+def test_conditional_general_rules_are_not_violations(answer):
+    """ATO guidance is written in the second person with conditions attached.
+
+    "You don't have to pay X if Y" states a rule; without the condition it has
+    decided the reader's case. Blocking the conditional form refused correct
+    answers about the Medicare levy and about amending a return.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You don't have to pay the Medicare levy.",
+        "You should claim this deduction.",
+    ],
+)
+def test_unconditional_assertions_are_still_refused(answer):
+    """The narrowing must not open a hole: with no condition, these still decide
+    the reader's case and must be refused."""
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is True
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You can claim this rate for a maximum of 5,000 kilometres per car.",
+        "You can claim up to $300 of work expenses without written evidence.",
+    ],
+)
+def test_quantitative_limits_count_as_conditions(answer):
+    """A bound qualifies a claim as much as an eligibility test does.
+
+    "You can claim this rate for a maximum of 5,000 km" states the rule and
+    its limit; it has not decided the reader's case. Blocking it refused a
+    correct answer about the cents-per-kilometre method.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "You should declare this income as business income in your tax return.",
+        "You should lodge your return by 31 October.",
+    ],
+)
+def test_obligations_are_not_personalised_advice(answer):
+    """Declaring and lodging are obligations, not entitlements.
+
+    The guard exists to stop the system deciding a concession applies to the
+    reader. Telling someone to declare income cannot over-claim on their
+    behalf, and blocking it refused a correct answer about gig income.
+    """
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+    assert out["refused"] is False
+
+
+def test_refuting_a_myth_is_not_a_violation():
+    """Correcting misinformation means quoting it.
+
+    "It is not true that you don't have to declare cash income" says the
+    opposite of the phrase it contains. Refusing it left the user's wrong
+    belief uncorrected, which is the worst outcome available.
+    """
+    out = check_output(
+        {
+            "answer": "No, it is not true that you don't have to declare cash income.",
+            "sources": [{"url": "u"}],
+        }
+    )
+    assert out["refused"] is False
