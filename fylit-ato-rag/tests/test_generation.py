@@ -103,6 +103,32 @@ def test_verify_grounding_ignores_prose_numbers():
     evidence = [fused(text="There are conditions to meet.")]
     assert verify_grounding("There are 2 conditions and 3 steps.", evidence) is True
 
+def test_verify_grounding_accepts_a_figure_from_the_question():
+    """The user's own number is not a claim about tax.
+
+    "I bought a laptop for $1,800" makes $1,800 the user's fact, so repeating
+    it back invents nothing. Without this, any question containing an amount
+    was refused, because the echoed figure appeared in no passage.
+    """
+    evidence = [fused(text="Items costing $300 or less can be claimed immediately.")]
+    question = "I bought a laptop for $1,800 for work. Can I claim the full amount?"
+    assert verify_grounding(
+        "You cannot claim the full $1,800 because it costs more than $300.",
+        evidence,
+        question,
+    ) is True
+
+
+def test_verify_grounding_still_catches_a_figure_computed_from_the_question():
+    """The narrowing must not let arithmetic through.
+
+    $342 appears in neither the question nor the passages, so a figure the
+    model worked out from the user's numbers is still ungrounded.
+    """
+    evidence = [fused(text="Include all your employment income.")]
+    question = "I get $38 an hour and work 9 hours a week."
+    assert verify_grounding("Your weekly earnings are $342.", evidence, question) is False    
+
 
 # ---------------------------------------------------------------- prompts
 

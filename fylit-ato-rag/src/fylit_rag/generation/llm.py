@@ -147,7 +147,7 @@ def generate_answer(
     if answer.startswith(prompts.REFUSAL_MESSAGE[:40]):
         return _refusal("model_refused")
 
-    if not verify_grounding(answer, evidence):
+    if not verify_grounding(answer, evidence, question):
         return _refusal("ungrounded_numeric_claim")
 
     return {
