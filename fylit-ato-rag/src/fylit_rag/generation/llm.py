@@ -23,6 +23,7 @@ actually put in the prompt are already the answer to "what did this come from".
 
 from __future__ import annotations
 
+import re
 import time
 
 from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
@@ -47,32 +48,64 @@ TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError, Interna
 # API behaviour.
 MAX_EVIDENCE = 5
 
-def _sources(evidence) -> list[dict]:
-    """Citations, deduplicated by URL, in the order the evidence was ranked.
+def _sources(question: str, evidence) -> list[dict]:
+    """Select user-facing citations from retrieved evidence."""
 
-    Capped at `settings.citation_limit`. Every evidence passage used to become
-    a citation, so a K of 15 produced 12 links, most of them passages the
-    answer never drew on.
-    """
+    stopwords = {
+        "a", "an", "and", "are", "can", "do", "does", "for",
+        "how", "i", "in", "is", "my", "of", "the", "to", "what",
+    }
+
+    query_terms = {
+        term
+        for term in re.findall(r"[a-z0-9]+", question.lower())
+        if term not in stopwords
+    }
+
     seen: set[str] = set()
-    sources = []
-    for candidate in evidence:
+    ranked_sources = []
+
+    for rank, candidate in enumerate(evidence):
         result = getattr(candidate, "result", candidate)
         url = result.source_url or ""
-        if url in seen:
+
+        if not url or url in seen:
             continue
+
         seen.add(url)
-        sources.append(
-            {
-                "title": result.source_title,
-                "url": url,
-                "version": result.version,
-                "last_updated": (
-                    result.last_updated.isoformat() if result.last_updated else None
-                ),
-            }
+
+        title_terms = set(
+            re.findall(r"[a-z0-9]+", (result.source_title or "").lower())
         )
-    return sources[: settings.citation_limit]
+
+        overlap = len(query_terms & title_terms)
+        coverage = overlap / len(query_terms) if query_terms else 0.0
+
+        ranked_sources.append(
+            (
+                coverage,
+                overlap,
+                rank,
+                {
+                    "title": result.source_title,
+                    "url": url,
+                    "version": result.version,
+                    "last_updated": (
+                        result.last_updated.isoformat()
+                        if result.last_updated
+                        else None
+                    ),
+                },
+            )
+        )
+
+    ranked_sources.sort(key=lambda item: (-item[0], -item[1], item[2]))
+
+    return [
+        source
+        for _, _, _, source
+        in ranked_sources[: settings.citation_limit]
+    ]
 
 
 def _refusal(reason: str) -> dict:
@@ -159,7 +192,7 @@ def generate_answer(
     return {
         "answer": answer,
         "refused": False,
-        "sources": _sources(evidence),
+        "sources": _sources(question,evidence),
         "disclaimer": prompts.DISCLAIMER,
         "guardrail": None,
         "injection_findings": sanitised.findings,
