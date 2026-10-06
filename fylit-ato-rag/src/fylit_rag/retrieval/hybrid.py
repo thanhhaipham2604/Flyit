@@ -21,8 +21,10 @@ agreement between both.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
+from fylit_rag.config import settings
 from fylit_rag.indexing.bootstrap import connect
 from fylit_rag.indexing.keyword_index import KeywordIndex
 from fylit_rag.indexing.search import SearchResult
@@ -89,6 +91,52 @@ def reciprocal_rank_fusion(
     return sorted(fused.values(), key=lambda f: (-f.score, f.chunk_id))
 
 
+# The ATO republishes the same page for every income year: "myTax 2020 Medicare
+# levy surcharge", "myTax 2022 Medicare levy surcharge", and so on. They are
+# near-identical and they fill the shortlist. Measured against the live index,
+# "What is the Medicare levy?" sat at rank 23 behind eighteen copies of the
+# surcharge page, so the page that answers the question never reached the model.
+_FAMILY_NOISE = re.compile(
+    r"\bmytax\b|\b(19|20)\d{2}(\s*[-\u2013]\s*\d{2,4})?\b", re.IGNORECASE
+)
+_NON_WORD = re.compile(r"[^a-z]+")
+
+
+def _family(title: str) -> str:
+    """A page's identity with the income year and the myTax prefix removed."""
+    stripped = _FAMILY_NOISE.sub(" ", title or "")
+    return " ".join(_NON_WORD.sub(" ", stripped.lower()).split())
+
+
+def _limit_families(results, max_docs: int | None = None):
+    """Keep at most `max_docs` distinct documents per title family.
+
+    Documents, not chunks: a rates page legitimately contributes one table per
+    income year from a single document, and capping chunks would discard the
+    year being asked about. Untitled pages are not a family and pass through.
+
+    Off by default - see settings.family_cap. It changes retrieval for every
+    question, so it ships inert and the probe decides whether to enable it.
+    """
+    max_docs = settings.family_cap if max_docs is None else max_docs
+    if max_docs <= 0:
+        return results
+
+    seen: dict[str, set[str]] = {}
+    kept = []
+    for item in results:
+        result = getattr(item, "result", item)
+        family = _family(result.source_title)
+        if not family:
+            kept.append(item)
+            continue
+        docs = seen.setdefault(family, set())
+        if result.doc_id in docs or len(docs) < max_docs:
+            docs.add(result.doc_id)
+            kept.append(item)
+    return kept
+
+
 def retrieve(
     query: str,
     top_k: int = 20,
@@ -129,4 +177,4 @@ def retrieve(
         with connect() as connection:
             ranked = _search(connection)
 
-    return reciprocal_rank_fusion(ranked)[:top_k]
+    return _limit_families(reciprocal_rank_fusion(ranked))[:top_k]
