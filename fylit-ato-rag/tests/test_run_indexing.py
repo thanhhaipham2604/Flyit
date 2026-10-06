@@ -7,8 +7,11 @@ these stay fast and cost nothing.
 Skipped when no database is reachable, like the store tests.
 """
 
+import json
+
 import pytest
 
+import fylit_rag.indexing.run_indexing as run_indexing_module
 from fylit_rag.indexing import store
 from fylit_rag.indexing.run_indexing import index_documents, load_enriched
 
@@ -158,3 +161,211 @@ def test_load_enriched_reads_jsonl(tmp_path):
 
     assert set(docs) == {"a", "b"}
     assert docs["a"]["cleaned_content"] == "x"
+
+def test_failed_indexing_does_not_advance_state(tmp_path, monkeypatch):
+    """A failed indexing run must leave the previous state checkpoint intact."""
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps({"doc-old": "old-hash"}),
+        encoding="utf-8",
+    )
+
+    pending_state = {
+        "doc-old": "new-hash",
+        "doc-new": "new-doc-hash",
+    }
+
+    preprocessing_calls = {}
+
+    def fake_preprocessing(**kwargs):
+        preprocessing_calls.update(kwargs)
+        return {
+            "incremental_diff": {
+                "new_ids": ["doc-new"],
+                "changed_ids": ["doc-old"],
+                "deleted_ids": [],
+                "new": 1,
+                "changed": 1,
+                "unchanged": 0,
+                "deleted": 0,
+            },
+            "pending_state": pending_state,
+            "paths": {
+                "state": str(state_path),
+                "enriched_corpus": str(tmp_path / "enriched_corpus.jsonl"),
+            },
+        }
+
+    class FakeCursor:
+        def fetchone(self):
+            return (1,)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, *args, **kwargs):
+            return FakeCursor()
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(
+        run_indexing_module,
+        "run_preprocessing",
+        fake_preprocessing,
+    )
+    monkeypatch.setattr(
+        run_indexing_module,
+        "load_enriched",
+        lambda path: {
+            "doc-old": document("doc-old"),
+            "doc-new": document("doc-new"),
+        },
+    )
+    monkeypatch.setattr(
+        run_indexing_module,
+        "bootstrap",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        run_indexing_module,
+        "connect",
+        lambda: FakeConnection(),
+    )
+
+    def fail_indexing(*args, **kwargs):
+        raise RuntimeError("simulated indexing failure")
+
+    monkeypatch.setattr(
+        run_indexing_module,
+        "index_documents",
+        fail_indexing,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="simulated indexing failure",
+    ):
+        run_indexing_module.run(
+            corpus_dir="unused",
+            output_dir=str(tmp_path),
+            embed=False,
+        )
+
+    assert preprocessing_calls["persist_state"] is False
+
+    assert json.loads(
+        state_path.read_text(encoding="utf-8")
+    ) == {
+        "doc-old": "old-hash",
+    }
+
+
+def test_successful_indexing_advances_state_after_commit(
+    tmp_path,
+    monkeypatch,
+):
+    """The new checkpoint must be written only after DB commit succeeds."""
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps({"doc-old": "old-hash"}),
+        encoding="utf-8",
+    )
+
+    pending_state = {
+        "doc-old": "new-hash",
+        "doc-new": "new-doc-hash",
+    }
+
+    events = []
+
+    def fake_preprocessing(**kwargs):
+        assert kwargs["persist_state"] is False
+
+        return {
+            "incremental_diff": {
+                "new_ids": [],
+                "changed_ids": [],
+                "deleted_ids": [],
+                "new": 0,
+                "changed": 0,
+                "unchanged": 2,
+                "deleted": 0,
+            },
+            "pending_state": pending_state,
+            "paths": {
+                "state": str(state_path),
+                "enriched_corpus": str(tmp_path / "enriched_corpus.jsonl"),
+            },
+        }
+
+    class FakeCursor:
+        def fetchone(self):
+            return (1,)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, *args, **kwargs):
+            return FakeCursor()
+
+        def commit(self):
+            events.append("commit")
+
+    monkeypatch.setattr(
+        run_indexing_module,
+        "run_preprocessing",
+        fake_preprocessing,
+    )
+    monkeypatch.setattr(
+        run_indexing_module,
+        "load_enriched",
+        lambda path: {},
+    )
+    monkeypatch.setattr(
+        run_indexing_module,
+        "bootstrap",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        run_indexing_module,
+        "connect",
+        lambda: FakeConnection(),
+    )
+    monkeypatch.setattr(
+        run_indexing_module,
+        "index_documents",
+        lambda *args, **kwargs: run_indexing_module.IndexReport(),
+    )
+
+    original_persist = run_indexing_module._persist_state
+
+    def tracked_persist(path, state):
+        events.append("state")
+        original_persist(path, state)
+
+    monkeypatch.setattr(
+        run_indexing_module,
+        "_persist_state",
+        tracked_persist,
+    )
+
+    run_indexing_module.run(
+        corpus_dir="unused",
+        output_dir=str(tmp_path),
+        embed=False,
+    )
+
+    assert events == ["commit", "state"]
+
+    assert json.loads(
+        state_path.read_text(encoding="utf-8")
+    ) == pending_state

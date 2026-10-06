@@ -413,6 +413,7 @@ def run_preprocessing(
         "data/processed"
     ),
     full_rebuild: bool = False,
+    persist_state: bool = True,
 ) -> dict:
     """Run the complete validated Phase-1 preprocessing workflow.
 
@@ -428,6 +429,11 @@ def run_preprocessing(
     full_rebuild:
         When ``True``, ignore the previous state and treat the current corpus
         as a fresh ingestion run.
+
+    persist_state:
+        When ``True`` (the default), write the newly computed incremental
+        state to ``state.json``. Integrated indexing can set this to ``False``
+        and persist the state only after the database transaction succeeds.
 
     Returns
     -------
@@ -611,10 +617,11 @@ def run_preprocessing(
         for doc in docs
     }
 
-    _write_json(
-        state_path,
-        new_state,
-    )
+    if persist_state:
+        _write_json(
+            state_path,
+            new_state,
+        )
 
     # ------------------------------------------------------------------ #
     # invalid_files.json
@@ -770,6 +777,9 @@ def run_preprocessing(
 
         "incremental_diff":
             diff,
+
+        "pending_state":
+            new_state,
 
         "year_tagging":
             year_summary,
