@@ -18,6 +18,13 @@ ENV_FILE = ".env"
 CONTAINER = "fylit-ato-rag-api-1"
 TIMEOUT = 180
 
+# A rate limit is the API asking us to slow down, not a verdict on the
+# question. Without a retry, one 429 is scored as a refusal, and a --repeat
+# run reports dozens of questions as flaky when nothing about them changed.
+RETRIES = 4
+RETRY_CODES = {429, 500, 502, 503, 504}
+BACKOFF = 5.0
+
 
 def ask(question: str, financial_year: str | None = None) -> dict:
     """One /ask call. Returns the parsed body, or {"error": ...}.
@@ -33,13 +40,18 @@ def ask(question: str, financial_year: str | None = None) -> dict:
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as exc:
-        return {"http_error": exc.code}
-    except Exception as exc:  # noqa: BLE001 - a probe reports failures, never raises
-        return {"error": type(exc).__name__}
+    for attempt in range(RETRIES):
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as exc:
+            if exc.code in RETRY_CODES and attempt < RETRIES - 1:
+                time.sleep(BACKOFF * 2**attempt)
+                continue
+            return {"http_error": exc.code}
+        except Exception as exc:  # noqa: BLE001 - a probe reports failures, never raises
+            return {"error": type(exc).__name__}
+    return {"http_error": 429}
 
 
 def outcome(body: dict) -> tuple[str, str, str]:
