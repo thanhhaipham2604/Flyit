@@ -21,7 +21,12 @@ from fylit_rag.indexing.bootstrap import connect
 from fylit_rag.indexing.embeddings import embed_texts
 from fylit_rag.indexing.search import fetch_embeddings
 from fylit_rag.retrieval.hybrid import retrieve
+from fylit_rag.retrieval.query_expansion import (
+    expand_query,
+    has_normalisation,
+)
 from fylit_rag.retrieval.rerank import rerank
+from fylit_rag.retrieval.temporal import prefer_current
 
 
 log = logging.getLogger(__name__)
@@ -48,12 +53,38 @@ def _blocked(reason: str, guardrail: str) -> AskResponse:
     )
 
 
+def _merge_candidates(primary, secondary):
+    """Interleave and deduplicate two retrieval result lists.
+
+    The original FusedResult objects are preserved so their vector and keyword
+    provenance remains available to downstream grounding checks.
+    """
+    merged = []
+    seen = set()
+
+    for index in range(max(len(primary), len(secondary))):
+        for results in (primary, secondary):
+            if index >= len(results):
+                continue
+
+            candidate = results[index]
+            chunk_id = candidate.result.chunk_id
+
+            if chunk_id in seen:
+                continue
+
+            seen.add(chunk_id)
+            merged.append(candidate)
+
+    return merged
+
+
 def answer_question(body: AskRequest) -> AskResponse:
     """Run the RAG application pipeline for an API question.
 
     The service owns application orchestration: input guards, conversation
-    context, retrieval, reranking, generation, output guards, diagnostics,
-    and response construction.
+    context, retrieval, temporal filtering, reranking, generation, output
+    guards, diagnostics, and response construction.
 
     HTTP-specific concerns such as routing and rate limiting remain in
     routes.py.
@@ -71,6 +102,17 @@ def answer_question(body: AskRequest) -> AskResponse:
         body.session_id or "",
         body.question,
     )
+
+    # Query expansion is used for retrieval and reranking only.
+    # Generation still receives the natural contextualised question.
+    retrieval_query = expand_query(question)
+
+    if retrieval_query != question:
+        log.debug(
+            "expanded retrieval query: %r -> %r",
+            question,
+            retrieval_query,
+        )
 
     # A year-scoped query may need historical/superseded guidance.
     filters = (
@@ -90,41 +132,117 @@ def answer_question(body: AskRequest) -> AskResponse:
 
     try:
         with connect() as conn:
-            if settings.rerank_strategy == "mmr":
-                # MMR requires the query embedding and candidate embeddings.
-                query_vector = embed_texts([question])[0]
+            # Some terminology needs explicit normalisation for retrieval.
+            # For example, "Uber Eats" should not retrieve ride-sourcing
+            # guidance merely because it contains the word "Uber".
+            normalised_retrieval = has_normalisation(question)
 
-                candidates = retrieve(
+            if settings.rerank_strategy == "mmr":
+                # MMR requires explicit query and candidate embeddings.
+                expanded_vector = embed_texts([retrieval_query])[0]
+
+                if normalised_retrieval:
+                    # For a known ambiguous term, retrieve only with the
+                    # clarified query.
+                    candidates = retrieve(
+                        retrieval_query,
+                        top_k=SHORTLIST,
+                        filters=filters,
+                        conn=conn,
+                        query_vector=expanded_vector,
+                    )
+
+                else:
+                    # Preserve both the taxpayer's natural wording and the
+                    # expanded ATO-oriented vocabulary.
+                    original_vector = embed_texts([question])[0]
+
+                    original_candidates = retrieve(
+                        question,
+                        top_k=SHORTLIST,
+                        filters=filters,
+                        conn=conn,
+                        query_vector=original_vector,
+                    )
+
+                    expanded_candidates = retrieve(
+                        retrieval_query,
+                        top_k=SHORTLIST,
+                        filters=filters,
+                        conn=conn,
+                        query_vector=expanded_vector,
+                    )
+
+                    # Interleave instead of performing another RRF so the
+                    # original vector/keyword provenance is preserved.
+                    candidates = _merge_candidates(
+                        original_candidates,
+                        expanded_candidates,
+                    )
+
+                # Remove stale year-specific guidance for undated questions.
+                # Explicit historical-year questions are preserved.
+                candidates = prefer_current(
                     question,
-                    top_k=SHORTLIST,
-                    filters=filters,
-                    conn=conn,
-                    query_vector=query_vector,
+                    candidates,
                 )
 
                 candidate_embeddings = fetch_embeddings(
                     conn,
-                    [candidate.chunk_id for candidate in candidates],
+                    [
+                        candidate.result.chunk_id
+                        for candidate in candidates
+                    ],
                 )
 
                 evidence = rerank(
-                    question,
+                    retrieval_query,
                     candidates,
                     top_n=EVIDENCE,
                     embeddings=candidate_embeddings,
-                    query_vector=query_vector,
+                    query_vector=expanded_vector,
                 )
 
             else:
-                candidates = retrieve(
+                if normalised_retrieval:
+                    # Use only the clarified query for known ambiguous terms.
+                    candidates = retrieve(
+                        retrieval_query,
+                        top_k=SHORTLIST,
+                        filters=filters,
+                        conn=conn,
+                    )
+
+                else:
+                    # Retrieve using both the natural contextualised question
+                    # and the expanded ATO-oriented query.
+                    original_candidates = retrieve(
+                        question,
+                        top_k=SHORTLIST,
+                        filters=filters,
+                        conn=conn,
+                    )
+
+                    expanded_candidates = retrieve(
+                        retrieval_query,
+                        top_k=SHORTLIST,
+                        filters=filters,
+                        conn=conn,
+                    )
+
+                    candidates = _merge_candidates(
+                        original_candidates,
+                        expanded_candidates,
+                    )
+
+                # Remove stale annual guidance for undated questions.
+                candidates = prefer_current(
                     question,
-                    top_k=SHORTLIST,
-                    filters=filters,
-                    conn=conn,
+                    candidates,
                 )
 
                 evidence = rerank(
-                    question,
+                    retrieval_query,
                     candidates,
                     top_n=EVIDENCE,
                 )
