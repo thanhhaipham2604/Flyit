@@ -182,7 +182,7 @@ def generate_answer(
         return _refusal("empty_generation")
 
     # The model was told to reply with exactly this when the passages fall short.
-    if answer.startswith(prompts.REFUSAL_MESSAGE[:40]):
+    if answer.strip() == prompts.REFUSAL_MESSAGE.strip():
         return _refusal("model_refused")
 
         # The dating facts were supplied by us, so they ground the answer too.

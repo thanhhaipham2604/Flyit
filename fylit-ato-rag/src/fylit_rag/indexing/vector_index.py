@@ -15,6 +15,8 @@ from __future__ import annotations
 import psycopg
 
 from fylit_rag.indexing.schema import ChunkRecord
+
+HNSW_EF_SEARCH = 100
 from fylit_rag.indexing.search import (
     RESULT_COLUMNS,
     SearchResult,
@@ -81,11 +83,20 @@ class VectorIndex:
             f"ORDER BY distance LIMIT %s"
         )
         with self.conn.cursor() as cur:
-            cur.execute(sql, [_as_vector(query_vector), *params, top_k])
-            return [
-                SearchResult.from_row(row[:-1], 1.0 - float(row[-1]), rank, "vector")
-                for rank, row in enumerate(cur.fetchall(), start=1)
-            ]
+            cur.execute(
+                "SELECT set_config('hnsw.ef_search', %s, true)",
+                (str(max(HNSW_EF_SEARCH, top_k)),),
+            )
+            cur.execute(
+                sql,
+                [_as_vector(query_vector), *params, top_k],
+            )
+            rows = cur.fetchall()
+
+        return [
+            SearchResult.from_row(row[:-1], 1.0 - float(row[-1]), rank, "vector")
+            for rank, row in enumerate(rows, start=1)
+        ]
 
     def delete_by_doc(self, doc_id: str) -> int:
         """Mark a document's chunks deleted.
