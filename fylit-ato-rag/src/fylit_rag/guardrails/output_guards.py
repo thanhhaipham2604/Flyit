@@ -97,6 +97,12 @@ def _asserted_without_conditions(answer: str) -> bool:
     return _without_conditions(_DEFINITE_CLAIM, answer)
 
 
+def _qualifies_without_conditions(answer: str) -> bool:
+    """True when the answer directly says the user qualifies, with no condition."""
+    trigger = re.compile(r"\byou qualify for\b", re.IGNORECASE)
+    return _without_conditions(trigger, answer)
+
+
 def _no_obligation_without_conditions(answer: str) -> bool:
     """True when a sentence says an obligation does not apply, full stop.
 
@@ -118,7 +124,7 @@ def _directed_without_conditions(answer: str) -> bool:
 ASSUMED_ENTITLEMENT = (
     re.compile(r"\byou can (definitely|certainly|absolutely) claim\b", re.IGNORECASE),
     _asserted_without_conditions,
-    re.compile(r"\byou qualify for\b", re.IGNORECASE),
+    _qualifies_without_conditions,
     re.compile(r"\byour deduction (is|will be)\b", re.IGNORECASE),
     _no_obligation_without_conditions,
 )
