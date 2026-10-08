@@ -16,6 +16,7 @@ model is called at all. Anything that matters is enforced twice.
 from __future__ import annotations
 
 from datetime import date
+import re
 
 # Passages are wrapped in these markers so the model can be told, precisely,
 # which span of the conversation is data rather than instruction.
@@ -153,6 +154,60 @@ def date_context(today: date | None = None) -> str:
     )
 
 
+_PERSONAL_CONTEXT = re.compile(
+    r"\b(?:i|i'm|im|my|me|we|our|partner|spouse|wife|husband)\b",
+    re.IGNORECASE,
+)
+
+_PERSONAL_CALCULATION_INTENT = re.compile(
+    r"\b(?:"
+    r"how much|"
+    r"what (?:do|did|will) i earn|"
+    r"do i pay|will i pay|"
+    r"how much (?:tax|levy|surcharge)|"
+    r"what (?:tax|levy|surcharge) do i pay|"
+    r"what do i owe|how much do i owe|"
+    r"am i liable|"
+    r"(?:does|do) .{0,30} apply to (?:me|us)|"
+    r"my (?:tax|liability|refund)|"
+    r"combined (?:income|total)|"
+    r"total (?:income|amount)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+_CALCULABLE_FIGURE = re.compile(
+    r"""
+    \$[\d,]+(?:\.\d+)?                              # dollar amount
+    |\b\d+(?:\.\d+)?%                              # percentage
+    |\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|days?|weeks?|months?)\b
+    |\b(?!19\d{2}\b|20\d{2}\b)\d{3,}(?:,\d{3})*\b # bare large number, not year
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _mask_personal_calculation_figures(question: str) -> str:
+    """Hide multiple personal figures from generation to prevent arithmetic.
+
+    Retrieval still uses the original question. Masking applies only when the
+    question contains personal context and at least two calculable figures, so
+    ordinary general questions about published thresholds keep their numbers.
+    """
+    if (
+        not _PERSONAL_CONTEXT.search(question)
+        or not _PERSONAL_CALCULATION_INTENT.search(question)
+    ):
+        return question
+
+    figures = list(_CALCULABLE_FIGURE.finditer(question))
+    if len(figures) < 2:
+        return question
+
+    return _CALCULABLE_FIGURE.sub("[user-provided figure]", question)
+
+
 def build_user_message(question: str, evidence_block: str, history: str = "") -> str:
     """Assemble the user turn: question, optional history, delimited passages.
 
@@ -160,7 +215,8 @@ def build_user_message(question: str, evidence_block: str, history: str = "") ->
     of characters of passage text, and the passages come last so the delimiters
     are the most recent thing the model read before answering.
     """
-    parts = [date_context(), f"Question: {question}"]
+    generation_question = _mask_personal_calculation_figures(question)
+    parts = [date_context(), f"Question: {generation_question}"]
     if history:
         parts.append(f"\nEarlier in this conversation (for reference only):\n{history}")
     parts.append(f"\nATO passages:\n{evidence_block}")

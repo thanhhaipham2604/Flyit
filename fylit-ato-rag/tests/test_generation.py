@@ -156,6 +156,61 @@ def test_the_user_message_puts_the_question_before_the_passages():
     assert message.index("What is the threshold?") < message.index("PASSAGES HERE")
 
 
+def test_user_message_masks_multiple_personal_amounts_before_generation():
+    """Personal amounts must not reach the model when it could total them."""
+    question = (
+        "I earn $85,000 and my partner earns $40,000. "
+        "Do I pay the Medicare levy surcharge?"
+    )
+
+    message = build_user_message(question, "PASSAGES HERE")
+
+    assert "$85,000" not in message
+    assert "$40,000" not in message
+    assert "user-provided" in message
+
+
+def test_user_message_masks_personal_rate_and_quantity_before_generation():
+    """Rates and quantities must not be available for model-side arithmetic."""
+    question = "I get $38 an hour and work 9 hours a week. What do I earn?"
+
+    message = build_user_message(question, "PASSAGES HERE")
+
+    assert "$38" not in message
+    assert "9 hours" not in message
+    assert "user-provided" in message
+
+
+def test_user_message_keeps_single_figure_general_rate_question():
+    """A normal single-figure tax question must keep its figure."""
+    question = "What tax bracket applies to $50,000?"
+
+    message = build_user_message(question, "PASSAGES HERE")
+
+    assert "$50,000" in message
+
+
+def test_user_message_keeps_multiple_figures_in_general_rule_question():
+    """Multiple figures alone must not trigger masking without personal context."""
+    question = "How do the $18,200 and $45,000 thresholds work?"
+
+    message = build_user_message(question, "PASSAGES HERE")
+
+    assert "$18,200" in message
+    assert "$45,000" in message
+
+
+
+def test_user_message_keeps_published_figures_with_conversational_personal_wording():
+    """Conversational first-person wording must not hide published thresholds."""
+    question = "I'm comparing the $18,200 and $45,000 thresholds. How do they work?"
+
+    message = build_user_message(question, "PASSAGES HERE")
+
+    assert "$18,200" in message
+    assert "$45,000" in message
+
+
 # ---------------------------------------------------------------- generation
 
 
