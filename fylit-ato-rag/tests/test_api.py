@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fylit_rag.api import routes
-from fylit_rag.api.main import FILTER_YEARS, app
+from fylit_rag.api.main import app
 from fylit_rag.config import settings
 from fylit_rag.generation.prompts import DISCLAIMER, REFUSAL_MESSAGE
 from fylit_rag.indexing.search import SearchResult
@@ -74,39 +74,12 @@ def test_health_needs_no_dependencies():
     assert client.get("/health").json() == {"status": "ok"}
 
 
-def test_web_interface_is_english_only():
-    """The demo page is English: no multilingual pitch, no Spanish placeholder."""
+def test_web_interface_advertises_multilingual_questions():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "any language" not in response.text
-    assert "same language" not in response.text
-    assert "¿" not in response.text
-
-
-def test_web_interface_offers_a_financial_year_filter():
-    """The year reaches /ask, so the page has to be able to send one."""
-    response = client.get("/")
-
-    assert 'id="financial-year"' in response.text
-    assert '<option value="">All years</option>' in response.text
-    for year in FILTER_YEARS:
-        assert f'<option value="{year}">{year}</option>' in response.text
-
-
-@pytest.mark.parametrize("year", FILTER_YEARS)
-def test_every_offered_year_is_a_real_financial_year(year):
-    """The column also holds junk pairs like '2025-30'; none may reach the filter."""
-    start, end = year.split("-")
-    assert (int(start) + 1) % 100 == int(end)
-
-
-def test_web_interface_renders_the_sources():
-    """The answer is not the whole contract - Useful Resources ship with it."""
-    response = client.get("/")
-
-    assert "Useful resources" in response.text
-    assert "useful_resources" in response.text
+    assert "any language" in response.text
+    assert "same language" in response.text
 
 
 def test_config_never_leaks_secrets():

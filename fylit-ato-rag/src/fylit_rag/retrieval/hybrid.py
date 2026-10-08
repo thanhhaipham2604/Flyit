@@ -17,26 +17,19 @@ RRF_K = 60 is the value from Cormack et al. (2009), which introduced the method
 and found it robust across collections without per-collection tuning. It damps
 the difference between ranks 1 and 2 so a single confident half cannot outvote
 agreement between both.
-
-The value is `settings.rrf_k`, read at call time, so it can be trialled from the
-environment without editing code. 60 remains the default because a sweep over
-the evaluation set could not detect a better one - see ADR-0004, which also
-records why the obvious "lower is sharper" intuition did not survive measurement.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from fylit_rag.config import settings
 from fylit_rag.indexing.bootstrap import connect
 from fylit_rag.indexing.keyword_index import KeywordIndex
 from fylit_rag.indexing.search import SearchResult
 from fylit_rag.indexing.vector_index import VectorIndex
 
-# Cormack et al. (2009), and the default of `settings.rrf_k`. Kept as a named
-# constant so tests and ADR-0004 can refer to the value the project ships with,
-# while the live value comes from configuration.
+# Cormack et al. (2009). Not tuned here; tuning it needs the labelled question
+# set that scripts/evaluate.py is waiting for.
 RRF_K = 60
 
 # Each half is asked for more than the caller wants, so fusion has room to move
@@ -72,19 +65,14 @@ class FusedResult:
 
 def reciprocal_rank_fusion(
     ranked_lists: dict[str, list[SearchResult]],
-    k: int | None = None,
+    k: int = RRF_K,
 ) -> list[FusedResult]:
     """Blend several ranked lists into one, deduping by chunk_id.
 
     Pure and connection-free so the ranking behaviour can be tested without a
     database - which matters, because this is the part most likely to be quietly
     wrong.
-
-    `k` defaults to `settings.rrf_k` and is read here rather than bound as a
-    default argument, so changing the setting takes effect without re-importing
-    the module - and so a caller (the evaluation sweep) can pass its own.
     """
-    k = settings.rrf_k if k is None else k
     fused: dict[str, FusedResult] = {}
 
     for retriever, results in ranked_lists.items():

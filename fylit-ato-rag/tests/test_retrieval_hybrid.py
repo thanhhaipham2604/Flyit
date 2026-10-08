@@ -6,9 +6,7 @@ index and skip without one.
 """
 
 import pytest
-from pydantic import ValidationError
 
-from fylit_rag.config import Settings, settings
 from fylit_rag.indexing.search import SearchResult, build_where
 from fylit_rag.retrieval.hybrid import RRF_K, reciprocal_rank_fusion, retrieve
 
@@ -86,34 +84,8 @@ def test_agreement_between_halves_outranks_a_single_confident_half():
 
 def test_scores_follow_the_rrf_formula():
     fused = reciprocal_rank_fusion({"vector": [result("a#1"), result("b#1")]})
-    assert fused[0].score == pytest.approx(1 / (settings.rrf_k + 1))
-    assert fused[1].score == pytest.approx(1 / (settings.rrf_k + 2))
-
-
-def test_k_comes_from_configuration(monkeypatch):
-    """So a different k can be trialled from the environment, not a code edit."""
-    monkeypatch.setattr(settings, "rrf_k", 10)
-    fused = reciprocal_rank_fusion({"vector": [result("a#1")]})
-    assert fused[0].score == pytest.approx(1 / (10 + 1))
-
-
-def test_an_explicit_k_overrides_the_setting(monkeypatch):
-    """The evaluation sweep compares several values in one process."""
-    monkeypatch.setattr(settings, "rrf_k", 10)
-    fused = reciprocal_rank_fusion({"vector": [result("a#1")]}, k=5)
-    assert fused[0].score == pytest.approx(1 / (5 + 1))
-
-
-def test_the_shipped_default_is_sixty():
-    """ADR-0004: no swept value beat it measurably, so 60 is what ships."""
-    assert Settings.model_fields["rrf_k"].default == RRF_K == 60
-
-
-@pytest.mark.parametrize("bad", [0, -1])
-def test_k_below_one_is_rejected(bad):
-    """1 / (k + rank) divides by zero once k is 0 or negative."""
-    with pytest.raises(ValidationError):
-        Settings(rrf_k=bad)
+    assert fused[0].score == pytest.approx(1 / (RRF_K + 1))
+    assert fused[1].score == pytest.approx(1 / (RRF_K + 2))
 
 
 def test_chunks_are_deduped_across_halves():
