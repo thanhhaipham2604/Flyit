@@ -29,6 +29,7 @@ RESULT_COLUMNS = (
     "heading_path",
     "source_title",
     "source_url",
+    "category",
     "version",
     "financial_year",
     "last_updated",
@@ -48,6 +49,7 @@ class SearchResult:
     heading_path: list[str] = field(default_factory=list)
     source_title: str = ""
     source_url: str = ""
+    category: str | None = None
     version: int = 1
     financial_year: list[str] = field(default_factory=list)
     last_updated: date | None = None
@@ -55,7 +57,7 @@ class SearchResult:
     @classmethod
     def from_row(cls, row, score: float, rank: int, retriever: str) -> SearchResult:
         (chunk_id, doc_id, text, heading_path, source_title,
-         source_url, version, financial_year, last_updated) = row
+         source_url, category, version, financial_year, last_updated) = row
         return cls(
             chunk_id=chunk_id,
             doc_id=doc_id,
@@ -66,6 +68,7 @@ class SearchResult:
             heading_path=list(heading_path or []),
             source_title=source_title or "",
             source_url=source_url or "",
+            category=category or None,
             version=version,
             financial_year=list(financial_year or []),
             last_updated=last_updated,
