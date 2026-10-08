@@ -1,5 +1,6 @@
 """Central configuration, loaded from environment / .env via pydantic-settings."""
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,12 @@ class Settings(BaseSettings):
     # mmr (diversity, free) or llm (gpt-4o-mini, costs a call per query).
     # See ADR-0003 for the comparison behind the default.
     rerank_strategy: str = "fusion"
+
+    # The damping constant in reciprocal rank fusion: score = 1 / (rrf_k + rank).
+    # Lower values let one confident half outvote agreement between both halves.
+    # 60 is Cormack et al. (2009); ADR-0004 records what the alternatives measured
+    # on this corpus. Must be >= 1, since 0 or less can divide by zero.
+    rrf_k: int = Field(default=60, ge=1)
 
     corpus_dir: str = "data/ato_corpus"
     index_dir: str = "data/index"

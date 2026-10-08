@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fylit-rag-api-preview",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/admin/Documents/Flyit/fylit-ato-rag && exec .venv/bin/python -m uvicorn fylit_rag.api.main:app --host 127.0.0.1 --port 8001"
+      ],
+      "port": 8001
+    }
+  ]
+}

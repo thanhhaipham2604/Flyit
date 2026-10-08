@@ -12,6 +12,9 @@ data:
   # fusion = no reranking on the query path. See ADR-0003: neither reranker beat
   # the baseline significantly, and the LLM one costs ~2.2s per query.
   RERANK_STRATEGY: "fusion"
+  # Fusion damping, score = 1 / (RRF_K + rank). Configurable so it can be
+  # trialled without a rebuild; 60 is the measured default (ADR-0004).
+  RRF_K: "60"
   # Per replica, not per service - the limiter counts in process memory, so N
   # replicas allow N x this. See the note in api-deployment.yaml.
   RATE_LIMIT_PER_MINUTE: "30"
