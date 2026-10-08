@@ -48,6 +48,41 @@ TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError, Interna
 # API behaviour.
 MAX_EVIDENCE = 5
 
+_INDIVIDUAL_AUDIENCE = re.compile(
+    r"\b(?:i|i'm|my|me|employee|salary|wages?|partner|spouse|tax return|refund)\b",
+    re.IGNORECASE,
+)
+
+_PROFESSIONAL_AUDIENCE = re.compile(
+    r"\b(?:"
+    r"tax agent|tax practitioner|tax professional|bas agent|"
+    r"superannuation professional|my client|our client|clients"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+_BUSINESS_AUDIENCE = re.compile(
+    r"\b(?:"
+    r"(?:run|own|operate) (?:a|my|our) business|"
+    r"my business|our business|business owner|"
+    r"employ(?:ing|s|ed)? (?:staff|employees?|workers?|contractors?)|"
+    r"hire (?:staff|employees?|workers?|contractors?)|"
+    r"payroll|gst|abn|sole trader|partnership|company"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_individual_question(question: str) -> bool:
+    """True when the wording is individual-facing rather than business-facing."""
+    return bool(
+        _INDIVIDUAL_AUDIENCE.search(question)
+        and not _BUSINESS_AUDIENCE.search(question)
+        and not _PROFESSIONAL_AUDIENCE.search(question)
+    )
+
+
 def _sources(question: str, evidence) -> list[dict]:
     """Select user-facing citations from retrieved evidence."""
 
@@ -64,10 +99,21 @@ def _sources(question: str, evidence) -> list[dict]:
 
     seen: set[str] = set()
     ranked_sources = []
+    individual_question = _is_individual_question(question)
 
     for rank, candidate in enumerate(evidence):
         result = getattr(candidate, "result", candidate)
         url = result.source_url or ""
+        category = (getattr(result, "category", None) or "").lower()
+
+        if (
+            individual_question
+            and category in {
+                "businesses-and-organisations",
+                "tax-and-super-professionals",
+            }
+        ):
+            continue
 
         if not url or url in seen:
             continue

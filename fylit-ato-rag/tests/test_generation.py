@@ -4,6 +4,7 @@ No network. `generate_answer` takes an injectable `complete`, and memory takes a
 injectable `rewrite`, so every path here runs without an API key.
 """
 from datetime import date
+from types import SimpleNamespace
 import pytest
 
 from fylit_rag.generation.grounding import (
@@ -13,7 +14,7 @@ from fylit_rag.generation.grounding import (
     has_sufficient_evidence,
     verify_grounding,
 )
-from fylit_rag.generation.llm import generate_answer
+from fylit_rag.generation.llm import _sources, generate_answer
 from fylit_rag.generation.memory import ConversationMemory
 from fylit_rag.generation.prompts import (
     DISCLAIMER,
@@ -201,6 +202,143 @@ def test_sources_come_from_the_chunks_not_the_model():
     )
 
     assert [s["url"] for s in out["sources"]] == ["https://ato.gov.au/threshold"]
+
+
+
+def test_sources_exclude_business_guidance_for_individual_question():
+    """Individual taxpayers should not be shown business-facing resources."""
+    business = SimpleNamespace(
+        source_title="Obligations when people work for you",
+        source_url=(
+            "https://www.ato.gov.au/businesses-and-organisations/"
+            "hiring-and-paying-your-workers/engaging-a-worker/"
+            "obligations-when-people-work-for-you"
+        ),
+        category="businesses-and-organisations",
+        version=1,
+        last_updated=None,
+    )
+    individual = SimpleNamespace(
+        source_title="Tax for employees",
+        source_url=(
+            "https://www.ato.gov.au/individuals-and-families/"
+            "jobs-and-employment-types/working-as-an-employee/tax-for-employees"
+        ),
+        category="individuals-and-families",
+        version=1,
+        last_updated=None,
+    )
+
+    sources = _sources(
+        "I am an employee. How much tax is withheld from my pay?",
+        [business, individual],
+    )
+
+    urls = [source["url"] for source in sources]
+    assert individual.source_url in urls
+    assert business.source_url not in urls
+
+
+def test_sources_keep_business_guidance_for_business_question():
+    """Explicit business questions must still be allowed to cite business guidance."""
+    business = SimpleNamespace(
+        source_title="Obligations when people work for you",
+        source_url=(
+            "https://www.ato.gov.au/businesses-and-organisations/"
+            "hiring-and-paying-your-workers/engaging-a-worker/"
+            "obligations-when-people-work-for-you"
+        ),
+        category="businesses-and-organisations",
+        version=1,
+        last_updated=None,
+    )
+
+    sources = _sources(
+        "I run a business and employ workers. What are my obligations?",
+        [business],
+    )
+
+    assert [source["url"] for source in sources] == [business.source_url]
+
+
+
+def test_sources_exclude_professional_guidance_for_individual_question():
+    """Individual taxpayers should not be shown tax-professional resources."""
+    professional = SimpleNamespace(
+        source_title="PAYG withholding variation for beneficiaries turning 60",
+        source_url=(
+            "https://www.ato.gov.au/tax-and-super-professionals/"
+            "for-superannuation-professionals/example"
+        ),
+        category="tax-and-super-professionals",
+        version=1,
+        last_updated=None,
+    )
+    individual = SimpleNamespace(
+        source_title="Tax for employees",
+        source_url=(
+            "https://www.ato.gov.au/individuals-and-families/"
+            "jobs-and-employment-types/working-as-an-employee/tax-for-employees"
+        ),
+        category="individuals-and-families",
+        version=1,
+        last_updated=None,
+    )
+
+    sources = _sources(
+        "I am an employee. How much tax is withheld from my pay?",
+        [professional, individual],
+    )
+
+    urls = [source["url"] for source in sources]
+    assert individual.source_url in urls
+    assert professional.source_url not in urls
+
+
+def test_sources_keep_professional_guidance_for_professional_question():
+    """Tax professionals must still be able to receive professional guidance."""
+    professional = SimpleNamespace(
+        source_title="PAYG withholding variation for beneficiaries turning 60",
+        source_url=(
+            "https://www.ato.gov.au/tax-and-super-professionals/"
+            "for-superannuation-professionals/example"
+        ),
+        category="tax-and-super-professionals",
+        version=1,
+        last_updated=None,
+    )
+
+    sources = _sources(
+        "I am a tax agent. What PAYG withholding guidance applies to my client?",
+        [professional],
+    )
+
+    assert [source["url"] for source in sources] == [professional.source_url]
+
+
+def test_search_result_from_row_carries_category():
+    """Stored corpus taxonomy must remain available to citation selection."""
+    row = (
+        "chunk-1",
+        "doc-1",
+        "ATO evidence",
+        [],
+        "Tax for employees",
+        "https://www.ato.gov.au/individuals-and-families/tax-for-employees",
+        "individuals-and-families",
+        1,
+        [],
+        None,
+    )
+
+    result = SearchResult.from_row(
+        row,
+        score=0.9,
+        rank=1,
+        retriever="vector",
+    )
+
+    assert result.category == "individuals-and-families"
 
 
 def test_the_passages_reach_the_prompt_delimited():
