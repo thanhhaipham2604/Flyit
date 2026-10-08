@@ -281,6 +281,20 @@ def test_general_rule_phrasing_is_not_blocked(answer):
     assert find_violations(answer) == []
 
 
+def test_conditional_qualify_wording_is_not_blocked():
+    """Conditional eligibility wording must not be treated as an entitlement."""
+    answer = (
+        "To see if you qualify for a refund of franking credits, "
+        "check the eligibility conditions."
+    )
+
+    out = check_output({"answer": answer, "sources": [{"url": "u"}]})
+
+    assert out["refused"] is False
+    assert answer in out["answer"]
+    assert find_violations(answer) == []
+
+
 @pytest.mark.parametrize(
     "answer",
     [
