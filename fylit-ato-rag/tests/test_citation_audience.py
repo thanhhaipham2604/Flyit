@@ -39,15 +39,27 @@ from fylit_rag.generation.llm import _sources
 def test_first_person_wording_preserves_retrieved_guidance(
     question, title, category
 ):
+    text = "This guidance applies when the stated conditions are met."
+
     evidence = SimpleNamespace(
         source_title=title,
         source_url=f"https://www.ato.gov.au/{category}/example",
         category=category,
         version=1,
         last_updated=None,
+        text=text,
     )
 
-    sources = _sources(question, [evidence])
+    sources = _sources(
+        text,
+        [evidence],
+        [{
+            "passage_id": 1,
+            "claim": text,
+            "excerpt": text,
+        }],
+        question=question,
+    )
 
     assert any(
         source["title"] == evidence.source_title

@@ -6,6 +6,7 @@ injectable `rewrite`, so every path here runs without an API key.
 from datetime import date
 from types import SimpleNamespace
 import pytest
+import json
 
 from fylit_rag.generation.grounding import (
     MIN_SUPPORTING,
@@ -27,6 +28,15 @@ from fylit_rag.generation.prompts import (
 from fylit_rag.indexing.search import SearchResult
 from fylit_rag.retrieval.hybrid import FusedResult
 
+def completion_json(answer, excerpt, passage_id=1):
+    return json.dumps({
+        "answer": answer,
+        "citations": [{
+            "passage_id": passage_id,
+            "claim": answer,
+            "excerpt": excerpt,
+        }],
+    })
 
 def result(score=0.8, text="The tax-free threshold is $18,200.", chunk_id="d#0"):
     return SearchResult(
@@ -129,7 +139,7 @@ def test_verify_grounding_still_catches_a_figure_computed_from_the_question():
     """
     evidence = [fused(text="Include all your employment income.")]
     question = "I get $38 an hour and work 9 hours a week."
-    assert verify_grounding("Your weekly earnings are $342.", evidence, question) is False    
+    assert verify_grounding("Your weekly earnings are $342.", evidence, question) is False
 
 
 # ---------------------------------------------------------------- prompts
@@ -228,7 +238,14 @@ def test_thin_evidence_refuses_without_calling_the_model():
 def test_a_grounded_answer_carries_its_sources():
     evidence = [fused(score=0.8), fused(score=0.78, chunk_id="d#1")]
 
-    out = generate_answer("q", evidence, complete=lambda _: "The threshold is $18,200.")
+    out = generate_answer(
+        "q",
+        evidence,
+        complete=lambda _: completion_json(
+            "The threshold is $18,200.",
+            "The tax-free threshold is $18,200.",
+        ),
+    )
 
     assert out["refused"] is False
     assert out["sources"][0]["url"] == "https://ato.gov.au/threshold"
@@ -241,7 +258,10 @@ def test_an_invented_figure_is_refused_in_live_generation():
     out = generate_answer(
         "What is the threshold?",
         evidence,
-        complete=lambda _: "The threshold is $25,000.",
+        complete=lambda _: completion_json(
+            "The threshold is $25,000.",
+            "The tax-free threshold is $18,200.",
+        ),
     )
 
     assert out["refused"] is True
@@ -249,53 +269,78 @@ def test_an_invented_figure_is_refused_in_live_generation():
 
 
 def test_sources_come_from_the_chunks_not_the_model():
-    """Asking a model for its own citations invites it to invent a plausible one."""
     evidence = [fused(score=0.8), fused(score=0.78, chunk_id="d#1")]
 
+    payload = json.loads(completion_json(
+        "The threshold is $18,200.",
+        "The tax-free threshold is $18,200.",
+    ))
+    payload["sources"] = [{
+        "title": "Invented source",
+        "url": "https://evil.example.com",
+    }]
+
     out = generate_answer(
-        "q", evidence, complete=lambda _: "See https://evil.example.com for details."
+        "q",
+        evidence,
+        complete=lambda _: json.dumps(payload),
     )
 
-    assert [s["url"] for s in out["sources"]] == ["https://ato.gov.au/threshold"]
-
+    assert out["refused"] is False
+    assert [source["url"] for source in out["sources"]] == [
+        "https://ato.gov.au/threshold"
+    ]
 
 
 def test_sources_exclude_business_guidance_for_individual_question():
-    """Individual taxpayers should not be shown business-facing resources."""
     business = SimpleNamespace(
-        source_title="Obligations when people work for you",
-        source_url=(
-            "https://www.ato.gov.au/businesses-and-organisations/"
-            "hiring-and-paying-your-workers/engaging-a-worker/"
-            "obligations-when-people-work-for-you"
-        ),
+        source_title="Business guidance",
+        source_url="https://www.ato.gov.au/businesses-and-organisations/example",
         category="businesses-and-organisations",
         version=1,
         last_updated=None,
+        text="Employers must meet reporting obligations.",
     )
     individual = SimpleNamespace(
-        source_title="Tax for employees",
-        source_url=(
-            "https://www.ato.gov.au/individuals-and-families/"
-            "jobs-and-employment-types/working-as-an-employee/tax-for-employees"
-        ),
+        source_title="Employee guidance",
+        source_url="https://www.ato.gov.au/individuals-and-families/example",
         category="individuals-and-families",
         version=1,
         last_updated=None,
+        text="Tax is withheld from employee pay.",
     )
+    question = "I am an employee. How much tax is withheld from my pay?"
 
     sources = _sources(
-        "I am an employee. How much tax is withheld from my pay?",
+        individual.text,
         [business, individual],
+        [{
+            "passage_id": 2,
+            "claim": individual.text,
+            "excerpt": individual.text,
+        }],
+        question=question,
     )
 
-    urls = [source["url"] for source in sources]
-    assert individual.source_url in urls
-    assert business.source_url not in urls
+    assert [source["url"] for source in sources] == [
+        individual.source_url
+    ]
+
+    with pytest.raises(ValueError, match="citation_audience_mismatch"):
+        _sources(
+            business.text,
+            [business, individual],
+            [{
+                "passage_id": 1,
+                "claim": business.text,
+                "excerpt": business.text,
+            }],
+            question=question,
+        )
 
 
 def test_sources_keep_business_guidance_for_business_question():
-    """Explicit business questions must still be allowed to cite business guidance."""
+    """Explicit business questions can cite business guidance."""
     business = SimpleNamespace(
         source_title="Obligations when people work for you",
         source_url=(
@@ -306,52 +351,71 @@ def test_sources_keep_business_guidance_for_business_question():
         category="businesses-and-organisations",
         version=1,
         last_updated=None,
+        text="Employers must meet reporting obligations.",
     )
 
     sources = _sources(
-        "I run a business and employ workers. What are my obligations?",
+        business.text,
         [business],
+        [{
+            "passage_id": 1,
+            "claim": business.text,
+            "excerpt": business.text,
+        }],
+        question="I run a business and employ workers. What are my obligations?",
     )
 
     assert [source["url"] for source in sources] == [business.source_url]
 
-
-
 def test_sources_exclude_professional_guidance_for_individual_question():
-    """Individual taxpayers should not be shown tax-professional resources."""
     professional = SimpleNamespace(
-        source_title="PAYG withholding variation for beneficiaries turning 60",
-        source_url=(
-            "https://www.ato.gov.au/tax-and-super-professionals/"
-            "for-superannuation-professionals/example"
-        ),
+        source_title="Professional guidance",
+        source_url="https://www.ato.gov.au/tax-and-super-professionals/example",
         category="tax-and-super-professionals",
         version=1,
         last_updated=None,
+        text="Tax agents must check their client's circumstances.",
     )
     individual = SimpleNamespace(
-        source_title="Tax for employees",
-        source_url=(
-            "https://www.ato.gov.au/individuals-and-families/"
-            "jobs-and-employment-types/working-as-an-employee/tax-for-employees"
-        ),
+        source_title="Employee guidance",
+        source_url="https://www.ato.gov.au/individuals-and-families/example",
         category="individuals-and-families",
         version=1,
         last_updated=None,
+        text="Tax is withheld from employee pay.",
     )
+    question = "I am an employee. How much tax is withheld from my pay?"
 
     sources = _sources(
-        "I am an employee. How much tax is withheld from my pay?",
+        individual.text,
         [professional, individual],
+        [{
+            "passage_id": 2,
+            "claim": individual.text,
+            "excerpt": individual.text,
+        }],
+        question=question,
     )
 
-    urls = [source["url"] for source in sources]
-    assert individual.source_url in urls
-    assert professional.source_url not in urls
+    assert [source["url"] for source in sources] == [
+        individual.source_url
+    ]
+
+    with pytest.raises(ValueError, match="citation_audience_mismatch"):
+        _sources(
+            professional.text,
+            [professional, individual],
+            [{
+                "passage_id": 1,
+                "claim": professional.text,
+                "excerpt": professional.text,
+            }],
+            question=question,
+        )
 
 
 def test_sources_keep_professional_guidance_for_professional_question():
-    """Tax professionals must still be able to receive professional guidance."""
+    """Professional questions can cite professional guidance."""
     professional = SimpleNamespace(
         source_title="PAYG withholding variation for beneficiaries turning 60",
         source_url=(
@@ -361,11 +425,18 @@ def test_sources_keep_professional_guidance_for_professional_question():
         category="tax-and-super-professionals",
         version=1,
         last_updated=None,
+        text="Tax agents must check their client's circumstances.",
     )
 
     sources = _sources(
-        "I am a tax agent. What PAYG withholding guidance applies to my client?",
+        professional.text,
         [professional],
+        [{
+            "passage_id": 1,
+            "claim": professional.text,
+            "excerpt": professional.text,
+        }],
+        question="I am a tax agent. What PAYG withholding guidance applies to my client?",
     )
 
     assert [source["url"] for source in sources] == [professional.source_url]
@@ -544,3 +615,112 @@ def test_the_user_turn_states_todays_date():
     message = build_user_message("What is the tax bracket this year?", "passages")
     assert "current Australian financial year is" in message
     assert message.index("Question:") > message.index("financial year is")
+
+def test_answer_parts_select_only_cited_sources():
+    evidence = [
+        fused(text="The tax-free threshold is $18,200."),
+        fused(
+            text="Other unrelated guidance.",
+            chunk_id="other#0",
+        ),
+    ]
+    evidence[1].result.source_url = "https://ato.gov.au/other"
+
+    payload = {
+        "answer_parts": [{
+            "text": "The threshold is $18,200.",
+            "citations": [{
+                "passage_id": 1,
+                "excerpt": "The tax-free threshold is $18,200.",
+            }],
+        }],
+    }
+
+    out = generate_answer(
+        "What is the threshold?",
+        evidence,
+        complete=lambda _: json.dumps(payload),
+    )
+
+    assert out["refused"] is False
+    assert out["answer"] == "The threshold is $18,200."
+    assert [source["url"] for source in out["sources"]] == [
+        "https://ato.gov.au/threshold"
+    ]
+
+@pytest.mark.parametrize(
+    "excerpt,accepted",
+    [
+        ("Registration is required. Independence is required.", True),
+        ("Registration is optional. Independence is required.", False),
+    ],
+)
+def test_citation_excerpt_handles_markdown_without_accepting_changed_words(
+    excerpt, accepted
+):
+    passage = (
+        "- [Registration](https://www.ato.gov.au/register) is required.\n"
+        "- Independence is required."
+    )
+    evidence = [fused(text=passage)]
+
+    payload = {
+        "answer_parts": [{
+            "text": "Registration and independence are required.",
+            "citations": [{
+                "passage_id": 1,
+                "excerpt": excerpt,
+            }],
+        }],
+    }
+
+    out = generate_answer(
+        "What are the requirements?",
+        evidence,
+        complete=lambda _: json.dumps(payload),
+    )
+
+    assert out["refused"] is not accepted
+
+    if not accepted:
+        assert out["guardrail"] == (
+            "invalid_citation_response:excerpt_not_in_passage"
+        )
+
+@pytest.mark.parametrize(
+    "excerpt_id,accepted",
+    [
+        ("1.1", True),
+        ("999.1", False),
+    ],
+)
+def test_excerpt_ids_accept_supplied_ids_and_reject_invented_ids(
+    excerpt_id, accepted
+):
+    evidence = [fused(text="The tax-free threshold is $18,200.")]
+
+    payload = {
+        "answer_parts": [{
+            "text": "The threshold is $18,200.",
+            "citations": [{"excerpt_id": excerpt_id}],
+        }],
+    }
+
+    out = generate_answer(
+        "What is the threshold?",
+        evidence,
+        complete=lambda _: json.dumps(payload),
+    )
+
+    assert out["refused"] is not accepted
+
+    if accepted:
+        assert out["answer"] == "The threshold is $18,200."
+        assert [source["url"] for source in out["sources"]] == [
+            "https://ato.gov.au/threshold"
+        ]
+    else:
+        assert out["sources"] == []
+        assert out["guardrail"] == (
+            "invalid_citation_response:invalid_excerpt_id"
+        )
