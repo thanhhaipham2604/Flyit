@@ -49,7 +49,7 @@ TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError, Interna
 MAX_EVIDENCE = 5
 
 _INDIVIDUAL_AUDIENCE = re.compile(
-    r"\b(?:i|i'm|my|me|employee|salary|wages?|partner|spouse|tax return|refund)\b",
+    r"\b(?:employee|salary|wages?|partner|spouse|tax return|refund)\b",
     re.IGNORECASE,
 )
 
@@ -152,7 +152,6 @@ def _sources(question: str, evidence) -> list[dict]:
         for _, _, _, source
         in ranked_sources[: settings.citation_limit]
     ]
-
 
 def _refusal(reason: str) -> dict:
     return {
