@@ -141,7 +141,7 @@ def _sources(
                 "tax-and-super-professionals",
             }
         ):
-            raise ValueError("citation_audience_mismatch")
+            continue
 
         passage, _ = neutralise(result.text or "")
 
@@ -173,6 +173,9 @@ def _sources(
                     if result.last_updated else None
                 ),
             })
+
+    if not sources:
+        raise ValueError("no_audience_appropriate_citation")
 
     if len(sources) > settings.citation_limit:
         raise ValueError("citation_limit_exceeded")

@@ -326,7 +326,7 @@ def test_sources_exclude_business_guidance_for_individual_question():
         individual.source_url
     ]
 
-    with pytest.raises(ValueError, match="citation_audience_mismatch"):
+    with pytest.raises(ValueError, match="no_audience_appropriate_citation"):
         _sources(
             business.text,
             [business, individual],
@@ -401,7 +401,7 @@ def test_sources_exclude_professional_guidance_for_individual_question():
         individual.source_url
     ]
 
-    with pytest.raises(ValueError, match="citation_audience_mismatch"):
+    with pytest.raises(ValueError, match="no_audience_appropriate_citation"):
         _sources(
             professional.text,
             [professional, individual],
