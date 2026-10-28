@@ -74,6 +74,71 @@ def test_health_needs_no_dependencies():
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_previous_turns_reach_the_model(wired, monkeypatch):
+    """Memory must reach generation, not only the query rewriter.
+
+    `contextualise` rewrites a follow-up so retrieval finds the right passages,
+    but if the turns never reach the model it answers a question it cannot see
+    the context for.
+    """
+    # Keep the follow-up rewrite offline while leaving the real code path intact.
+    monkeypatch.setattr(
+        "fylit_rag.generation.memory._llm_rewrite",
+        lambda previous, question: question,
+    )
+
+    seen: dict = {}
+
+    def capture(question, evidence, history=None, **kwargs):
+        seen["history"] = list(history or [])
+        return {
+            "answer": "You may be able to claim it if you meet the conditions.",
+            "refused": False,
+            "sources": [{"title": "Working from home", "url": "https://ato.gov.au/wfh"}],
+            "disclaimer": DISCLAIMER,
+            "guardrail": None,
+            "injection_findings": [],
+        }
+
+    monkeypatch.setattr(service, "generate_answer", capture)
+
+    first = client.post(
+        "/ask",
+        json={"question": "What can I claim for working from home?", "session_id": "s1"},
+    )
+    assert first.status_code == 200
+    assert seen["history"] == [], "the opening question has nothing before it"
+
+    client.post("/ask", json={"question": "What about for a sole trader?", "session_id": "s1"})
+
+    assert len(seen["history"]) == 1
+    assert "working from home" in seen["history"][0].question
+
+
+def test_turns_do_not_leak_between_sessions(wired, monkeypatch):
+    """Each browser tab carries its own session_id; one must not see another's."""
+    seen: dict = {}
+
+    def capture(question, evidence, history=None, **kwargs):
+        seen["history"] = list(history or [])
+        return {
+            "answer": "The tax-free threshold is $18,200.",
+            "refused": False,
+            "sources": [{"title": "Threshold", "url": "https://ato.gov.au/threshold"}],
+            "disclaimer": DISCLAIMER,
+            "guardrail": None,
+            "injection_findings": [],
+        }
+
+    monkeypatch.setattr(service, "generate_answer", capture)
+
+    client.post("/ask", json={"question": "What is the tax-free threshold?", "session_id": "s1"})
+    client.post("/ask", json={"question": "What is the tax-free threshold?", "session_id": "other"})
+
+    assert seen["history"] == []
+    service.memory.clear("other")
+
+
 def test_web_interface_advertises_multilingual_questions():
     response = client.get("/")
 

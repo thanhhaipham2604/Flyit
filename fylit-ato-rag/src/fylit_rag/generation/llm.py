@@ -48,6 +48,26 @@ TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, APITimeoutError, Interna
 # API behaviour.
 MAX_EVIDENCE = 5
 
+# How much of a past answer is carried into the prompt. Memory keeps six turns
+# (see `generation.memory`), and replaying six answers in full would add
+# thousands of tokens to every request while competing with the retrieved
+# passages. The opening says what the turn was about, which is all history is
+# for - it resolves what the user meant and is never a source.
+HISTORY_ANSWER_CHARS = 400
+
+
+def _summarise_turn(answer: str) -> str:
+    """The opening of a past answer, cut at a sentence end where one is near."""
+    text = " ".join((answer or "").split())
+    if len(text) <= HISTORY_ANSWER_CHARS:
+        return text
+
+    window = text[:HISTORY_ANSWER_CHARS]
+    cut = max(window.rfind(". "), window.rfind("! "), window.rfind("? "))
+    if cut > HISTORY_ANSWER_CHARS // 2:
+        return window[: cut + 1]
+    return window.rstrip() + "..."
+
 _INDIVIDUAL_AUDIENCE = re.compile(
     r"\b(?:employee|salary|wages?|partner|spouse|tax return|refund)\b",
     re.IGNORECASE,
@@ -326,8 +346,13 @@ def generate_answer(
 
     history_text = ""
     if history:
+        # Past questions are kept whole - they are short, and they are what a
+        # follow-up refers back to. Past answers are truncated: history is there
+        # to resolve what the user meant, never to be a source, so the opening
+        # of an answer carries the subject without spending thousands of tokens
+        # per request or competing with the retrieved passages for attention.
         history_text = "\n".join(
-            f"Q: {turn.question}\nA: {turn.answer}"
+            f"Q: {turn.question}\nA: {_summarise_turn(turn.answer)}"
             for turn in history
         )
 

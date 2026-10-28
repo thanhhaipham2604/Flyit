@@ -265,10 +265,22 @@ def answer_question(body: AskRequest) -> AskResponse:
 
     started = time.perf_counter()
 
+    # Prior turns go to the model as well as to the query rewriter. Without them
+    # a follow-up is answered blind: "what about for a sole trader?" retrieves
+    # sensibly, because `contextualise` rewrote the query, but the model itself
+    # has no idea what came before.
+    #
+    # Read before this turn is recorded, so the history is what preceded the
+    # question rather than including it. The prompt's CONVERSATION MEMORY rules
+    # still apply: history says what the user meant and can never be a source,
+    # so every fact in the answer must come from the retrieved passages.
+    history = memory.history(body.session_id or "")
+
     result = check_output(
         generate_answer(
             question,
             evidence,
+            history,
             max_evidence=EVIDENCE,
         )
     )

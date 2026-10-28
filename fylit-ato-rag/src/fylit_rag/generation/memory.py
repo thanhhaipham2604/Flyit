@@ -22,10 +22,16 @@ import re
 from collections import OrderedDict, deque
 from dataclasses import dataclass
 
-# How many past turns are kept. Two is enough to resolve "what about 2024?"
-# without letting a long conversation accumulate context that quietly steers
-# retrieval away from what the user just asked.
-MAX_TURNS = 2
+# How many past turns are kept. Two was enough while memory only resolved
+# "what about 2024?" for the retrieval query. Now that the turns also reach the
+# model, six is what makes the interface behave like a conversation: a question
+# can refer back several exchanges, not just to the one before it.
+#
+# The ceiling is still low on purpose. A long history steers retrieval towards
+# what was asked earlier rather than what was asked now, and every turn is
+# prompt tokens on every request - which is why `generation.llm` keeps only the
+# opening of each past answer.
+MAX_TURNS = 6
 
 # How many sessions are held before the oldest is dropped. Bounded so a public
 # endpoint cannot grow memory without limit.

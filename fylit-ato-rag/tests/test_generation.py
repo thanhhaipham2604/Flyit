@@ -572,6 +572,44 @@ def test_only_the_last_few_turns_are_kept():
     assert [t.question for t in memory.history("s")] == ["q3", "q4"]
 
 
+def test_the_default_keeps_six_turns():
+    """Six is what lets a question refer back several exchanges, not just one."""
+    from fylit_rag.generation.memory import MAX_TURNS
+
+    assert MAX_TURNS == 6
+
+    memory = ConversationMemory()
+    for i in range(9):
+        memory.add_turn("s", f"q{i}", f"a{i}")
+
+    assert [t.question for t in memory.history("s")] == [f"q{i}" for i in range(3, 9)]
+
+
+def test_a_long_past_answer_is_truncated_in_the_prompt():
+    """Six turns of full answers would cost thousands of tokens on every request
+    and compete with the retrieved passages for the model's attention."""
+    memory = ConversationMemory()
+    long_answer = "The tax-free threshold is $18,200. " + ("Further detail. " * 200)
+    memory.add_turn("s", "What is the tax-free threshold?", long_answer)
+    captured = {}
+
+    def capture(messages):
+        captured["user"] = messages[1]["content"]
+        return "An answer."
+
+    generate_answer(
+        "And for a sole trader?",
+        [fused(score=0.8), fused(score=0.78, chunk_id="d#1")],
+        memory.history("s"),
+        complete=capture,
+    )
+
+    assert "What is the tax-free threshold?" in captured["user"], "questions stay whole"
+    assert "The tax-free threshold is $18,200." in captured["user"], "the opening survives"
+    assert long_answer.strip() not in captured["user"], "the full answer must not be replayed"
+    assert len(captured["user"]) < len(long_answer), "the prompt is smaller than the old answer"
+
+
 def test_sessions_are_bounded():
     """A public endpoint must not let memory grow without limit."""
     memory = ConversationMemory(max_sessions=3)
