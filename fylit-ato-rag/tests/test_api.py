@@ -139,12 +139,26 @@ def test_turns_do_not_leak_between_sessions(wired, monkeypatch):
     service.memory.clear("other")
 
 
-def test_web_interface_advertises_multilingual_questions():
+def test_web_interface_does_not_advertise_multilingual_questions():
+    """The page no longer makes a claim about languages.
+
+    The model still answers in the question's language - that rule lives in the
+    system prompt and is covered by test_generation - but the interface does not
+    promise it, so the copy was removed.
+    """
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "any language" in response.text
-    assert "same language" in response.text
+    assert "any language" not in response.text
+    assert "same language" not in response.text
+
+
+def test_web_interface_still_explains_how_to_send():
+    """Removing the language copy must not take the keyboard hint with it."""
+    response = client.get("/")
+
+    assert "to send" in response.text
+    assert "for a new line" in response.text
 
 
 def test_config_endpoint_is_not_exposed():
