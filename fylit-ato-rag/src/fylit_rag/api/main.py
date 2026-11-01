@@ -21,8 +21,6 @@ app = FastAPI(
     version="0.1.0",
     description=(
         "General Australian tax information grounded in official ATO content. "
-        "Questions may be asked in any language; answers follow the question's "
-        "language when the retrieved ATO evidence supports an answer. "
         "Not personal tax advice."
     ),
 )
