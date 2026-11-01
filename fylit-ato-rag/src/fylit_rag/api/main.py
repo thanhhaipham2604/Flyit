@@ -125,7 +125,11 @@ def web_interface() -> str:
         .thread { width: min(820px, calc(100% - 32px)); margin: 0 auto; padding: 4px 0 28px; display: grid; gap: 22px; align-content: start; }
 
         .hero { padding: clamp(20px, 7vh, 64px) 0 8px; }
-        .kicker { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 16px; }
+        .kicker { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+        /* Set in capitals, so the tracking is positive - the tight negative
+           letter-spacing that suits mixed-case display type closes up caps. */
+        h1 { margin: 14px 0 18px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(36px, 6.4vw, 64px); font-weight: 400; letter-spacing: .02em; line-height: 1; }
+        .intro { max-width: 590px; margin: 0 0 22px; color: var(--muted); font-size: 16px; line-height: 1.7; }
         .starters { display: flex; flex-wrap: wrap; gap: 9px; }
         .starter { border: 1px solid var(--line); border-radius: 999px; padding: 9px 15px; color: var(--ink); background: var(--surface); font-size: 13px; line-height: 1.4; text-align: left; cursor: pointer; }
         .starter:hover { border-color: var(--accent); background: var(--accent-soft); }
@@ -190,6 +194,8 @@ def web_interface() -> str:
 
         @media (max-width: 640px) {
             .topbar, .thread, .composer { width: calc(100% - 24px); }
+            h1 { font-size: clamp(34px, 10vw, 48px); }
+            .intro { font-size: 15px; }
             .assistant-message { padding: 17px; }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -210,6 +216,8 @@ def web_interface() -> str:
         <div class="thread" id="thread">
             <header class="hero" id="hero">
                 <div class="kicker">Fylit / ATO guidance</div>
+                <h1>ASK FYLIT</h1>
+                <p class="intro">Answers are grounded in retrieved Australian Taxation Office content and stay general, not personal tax advice. Ask follow-ups - this conversation keeps its context.</p>
                 <div class="starters">
                     <button class="starter" type="button">What can I claim for working from home?</button>
                     <button class="starter" type="button">How does capital gains tax work?</button>
